@@ -4,7 +4,7 @@ set -e
 echo "🔧 Setting up dotfiles for Arch Linux..."
 
 # ─────────────────────────────────────────────
-# 🧠 Check for Zsh and offer to install it
+# 🧠 Ensure Zsh is installed and set as default
 # ─────────────────────────────────────────────
 if ! command -v zsh &> /dev/null; then
   echo "⚠️ Zsh is not installed."
@@ -20,24 +20,58 @@ if ! command -v zsh &> /dev/null; then
 fi
 
 # ─────────────────────────────────────────────
-# 📦 Install required packages
+# 📦 Package check and summary
 # ─────────────────────────────────────────────
-echo "📦 Installing packages from install/arch-packages.txt..."
-sudo pacman -S --needed - < install/arch-packages.txt
+export PATH="$HOME/.cargo/bin:$PATH"
 
-# ─────────────────────────────────────────────
-# 🌟 Starship check
-# ─────────────────────────────────────────────
-if ! command -v starship &> /dev/null; then
-  echo "📦 Installing Starship via pacman..."
-  sudo pacman -S starship
+tools=(
+  fzf
+  zoxide
+  eza
+  bat
+  unzip
+  unrar
+  p7zip
+  starship
+)
+
+installed=()
+missing=()
+
+echo "🔍 Checking required tools..."
+
+for tool in "${tools[@]}"; do
+  if command -v "$tool" &> /dev/null; then
+    installed+=("$tool")
+  else
+    missing+=("$tool")
+  fi
+done
+
+echo ""
+echo "✅ Already installed: ${installed[*]:-"None"}"
+echo "📦 Missing and will be installed: ${missing[*]:-"None"}"
+
+if [[ ${#missing[@]} -eq 0 ]]; then
+  echo "🎉 All required tools are already installed. Skipping package install."
 else
-  echo "✅ Starship already installed. Skipping."
+  echo ""
+  read -p "Proceed with installing missing packages via pacman? (y/n): " confirm
+  if [[ "$confirm" =~ ^[Yy]$ ]]; then
+    echo ""
+    for pkg in "${missing[@]}"; do
+      echo "📦 Installing $pkg..."
+      sudo pacman -S --noconfirm "$pkg"
+    done
+  else
+    echo "⏭️ Skipping package installation. You may encounter issues if required tools are missing."
+  fi
 fi
 
 # ─────────────────────────────────────────────
 # 🔗 Symlink .zshrc
 # ─────────────────────────────────────────────
+echo ""
 echo "🔗 Linking .zshrc to home directory..."
 ln -sf "$PWD/.zshrc" "$HOME/.zshrc"
 
@@ -50,4 +84,5 @@ if [[ ! -f "$HOME/.zshrc.local" ]]; then
   echo "📝 Created ~/.zshrc.local for machine-specific settings."
 fi
 
+echo ""
 echo "✅ Setup complete. Reload your shell with: source ~/.zshrc"
