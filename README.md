@@ -19,8 +19,8 @@ Includes fzf-tab, zoxide, starship, and lazy-loaded NVM — optimized for Arch e
 ## 🛠 Installation
 Clone the repo and run the setup script:
 ```bash
-git clone https://github.com/purian23/dotfiles.git ~/dotfiles
-cd ~/dotfiles
+git clone https://github.com/purian23/zdots.git ~/.zdots
+cd ~/.zdots
 ./setup.sh
 ```
 Then reload your shell:

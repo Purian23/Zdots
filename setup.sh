@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-echo "🔧 Setting up dotfiles for Arch Linux..."
+INSTALL_DIR="$HOME/.zdots"
+
+echo "🔧 Setting up zdots in $INSTALL_DIR..."
 
 # ─────────────────────────────────────────────
 # 🧠 Ensure Zsh is installed and set as default
@@ -25,14 +27,14 @@ fi
 export PATH="$HOME/.cargo/bin:$PATH"
 
 tools=(
-  fzf
-  zoxide
-  eza
   bat
-  unzip
-  unrar
+  eza
+  fzf
   p7zip
   starship
+  unrar
+  unzip
+  zoxide
 )
 
 installed=()
@@ -69,19 +71,75 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# 🔗 Symlink .zshrc
+# 🗄 Backup existing .zshrc before replacing
 # ─────────────────────────────────────────────
-echo ""
-echo "🔗 Linking .zshrc to home directory..."
-ln -sf "$PWD/.zshrc" "$HOME/.zshrc"
+backup_file=""
+if [[ -f "$HOME/.zshrc" && ! -L "$HOME/.zshrc" ]]; then
+  backup_file="$HOME/.zshrc.bak.$(date +%Y%m%d%H%M%S)"
+  echo "🗄 Backing up existing .zshrc to $backup_file"
+  mv "$HOME/.zshrc" "$backup_file"
+fi
+
+# ─────────────────────────────────────────────
+# 🔗 Symlink .zshrc to zdots version
+# ─────────────────────────────────────────────
+echo "🔗 Linking zdots .zshrc to home directory..."
+ln -sf "$INSTALL_DIR/.zshrc" "$HOME/.zshrc"
 
 # ─────────────────────────────────────────────
 # 🧼 Create local override if missing
 # ─────────────────────────────────────────────
-if [[ ! -f "$HOME/.zshrc.local" ]]; then
-  touch "$HOME/.zshrc.local"
-  echo "# Local overrides go here" > "$HOME/.zshrc.local"
-  echo "📝 Created ~/.zshrc.local for machine-specific settings."
+if [[ ! -f "$INSTALL_DIR/zshrc.local" ]]; then
+  touch "$INSTALL_DIR/zshrc.local"
+  echo "# Local overrides go here" > "$INSTALL_DIR/zshrc.local"
+  echo "📝 Created $INSTALL_DIR/zshrc.local for machine-specific settings."
+fi
+
+# ─────────────────────────────────────────────
+# 🔄 Merge settings from backup into zshrc.local
+# ─────────────────────────────────────────────
+if [[ -n "$backup_file" && -f "$backup_file" ]]; then
+  echo "🔄 Merging settings from $backup_file into zshrc.local..."
+
+  {
+    echo ""
+    echo "# ─────────────────────────────────────────────"
+    echo "# Imported from previous .zshrc backup on $(date)"
+    echo "# ─────────────────────────────────────────────"
+  } >> "$INSTALL_DIR/zshrc.local"
+
+  # Aliases
+  grep -E '^alias ' "$backup_file" | while read -r line; do
+    if ! grep -Fxq "$line" "$INSTALL_DIR/zshrc.local"; then
+      echo "$line" >> "$INSTALL_DIR/zshrc.local"
+    fi
+  done
+
+  # All exports
+  grep -E '^export ' "$backup_file" | while read -r line; do
+    if ! grep -Fxq "$line" "$INSTALL_DIR/zshrc.local"; then
+      echo "$line" >> "$INSTALL_DIR/zshrc.local"
+    fi
+  done
+
+  # PATH modifications without export
+  grep -E '^PATH=' "$backup_file" | while read -r line; do
+    if ! grep -Fxq "$line" "$INSTALL_DIR/zshrc.local"; then
+      echo "$line" >> "$INSTALL_DIR/zshrc.local"
+    fi
+  done
+
+  # Multi-line functions
+  awk '
+    /^function [a-zA-Z0-9_]+\s*\(\)\s*\{/ {infunc=1; fn=""; fn=fn $0 "\n"; next}
+    infunc {fn=fn $0 "\n"; if (/^\}/) {print fn; infunc=0}}
+  ' "$backup_file" | while read -r block; do
+    if ! grep -Fq "$block" "$INSTALL_DIR/zshrc.local"; then
+      echo -e "$block" >> "$INSTALL_DIR/zshrc.local"
+    fi
+  done
+
+  echo "✅ Merge complete. Review $INSTALL_DIR/zshrc.local to confirm."
 fi
 
 echo ""

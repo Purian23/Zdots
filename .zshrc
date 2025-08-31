@@ -1,7 +1,7 @@
-source ~/dotfiles/zsh/options.zsh
-source ~/dotfiles/zsh/aliases.zsh
-source ~/dotfiles/zsh/functions.zsh
-source ~/dotfiles/zsh/plugins.zsh
-source ~/dotfiles/zsh/prompt.zsh
+source ~/.zdots/zsh/options.zsh
+source ~/.zdots/zsh/aliases.zsh
+source ~/.zdots/zsh/functions.zsh
+source ~/.zdots/zsh/plugins.zsh
+source ~/.zdots/zsh/prompt.zsh
 
-[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+[[ -f ~/.zdots/zshrc.local ]] && source ~/.zdots/zshrc.local
