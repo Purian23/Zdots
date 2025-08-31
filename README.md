@@ -1,6 +1,6 @@
 # Modular ZSH Dotfiles for Arch Linux
 
-![Shell Benchmark](https://img.shields.io/badge/zsh-startup%20time-~230ms-brightgreen)
+![Shell Benchmark](https://img.shields.io/badge/zsh%20startup%20time-230ms-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 A clean, reproducible Zsh setup designed for speed, system hygiene, and portability.  
