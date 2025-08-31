@@ -27,6 +27,9 @@ Then reload your shell:
 ```bash
 source ~/.zshrc
 ```
+⚠️ If Zsh is not installed, the setup script will prompt you to install it and set it as your default shell.  
+You can also install it manually via `sudo pacman -S zsh` and run `chsh -s $(which zsh)` to switch.
+
 ## 🧩 VS Code Compatibility
 To ensure full `.zshrc` sourcing and NVM support in VS Code, add this to your `settings.json`:
 
@@ -74,9 +77,6 @@ unrar
 unzip
 zoxide
 ```
-## 📜 License
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
-
 ## 🤝 Contributions
 Feel free to fork, tweak, or submit pull requests.  
 This setup is built for clarity, reproducibility, and performance — contributions that preserve those values are welcome.
