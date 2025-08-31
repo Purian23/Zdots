@@ -1,4 +1,4 @@
-# Modular ZSH Dotfiles for Arch Linux
+# Modular ZSH Dotfiles for Arch Linux (Zdots)
 
 ![Shell Benchmark](https://img.shields.io/badge/zsh%20startup%20time-230ms-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
@@ -7,14 +7,17 @@ A clean, reproducible Zsh setup designed for speed, system hygiene, and portabil
 Includes fzf-tab, zoxide, starship, and lazy-loaded NVM — optimized for Arch environments and terminal workflows.
 
 ## 🚀 Features
-- Modular `.zshrc` with override support  
+- Modular source files in `~/.zdots/zsh/` 
 - fzf-tab fuzzy completions  
 - zoxide smart directory jumping  
 - Starship prompt  
 - Lazy-loaded NVM with dynamic PATH  
-- Arch-friendly aliases and install script  
+- Alias and install script friendly
 - VS Code compatibility  
 - Sub-250ms shell startup time  
+- Backs up your existing ~/.zshrc to ~/.zshrc.bak.TIMESTAMP
+- Merges your aliases, exports, PATH changes, and functions from the backup into the new `.zshrc`
+- Concatenates zdots’ modular files into a single .zshrc for speed
 
 ## 🛠 Installation
 Clone the repo and run the setup script:
@@ -50,22 +53,13 @@ Shell startup time benchmark:
 time zsh -i -c exit
 # ~0.230s total
 ```
+Test your setup by uncommenting the following: 
+```bash
+zmodload zsh/zprof
+zprof
+```
 Use `zmodload zsh/zprof` and `zprof` to profile plugin load times.
 
-## 🧼 Customization with `.zshrc.local`
-This file is intentionally excluded from version control (`.gitignore`) and is meant for machine-specific overrides.
-
-Use it to:
-- Add personal aliases or functions  
-- Set environment variables like `EDITOR`, `PATH`, or `STARSHIP_CONFIG`  
-- Test plugins or completions without modifying core files  
-- Keep secrets or tokens out of the public repo  
-
-Example:
-```zsh
-export EDITOR=nvim
-alias gs='git status'
-```
 ## 📦 Packages Installed by `setup.sh`
 ```text
 bat
@@ -76,6 +70,16 @@ starship
 unrar
 unzip
 zoxide
+```
+## Uninstall
+To revert to a previous backup:
+```bash
+mv ~/.zshrc ~/.zshrc.generated.bak
+mv ~/.zshrc.bak.YYYYMMDDHHMMSS ~/.zshrc
+```
+Remove the repo if desired:
+```bash
+rm -rf ~/.zdots
 ```
 ## 🤝 Contributions
 Feel free to fork, tweak, or submit pull requests.  
