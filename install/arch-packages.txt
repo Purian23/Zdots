@@ -1,0 +1,8 @@
+bat
+eza
+fzf
+p7zip
+starship
+unrar
+unzip
+zoxide

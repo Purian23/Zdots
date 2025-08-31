@@ -1,0 +1,17 @@
+# Compiled Zsh config
+.zshrc.zwc
+
+# Local overrides
+.zshrc.local
+
+# Zsh completion cache
+.zcompdump*
+.zsh/cache/
+
+# Editor backups
+*~
+*.swp
+*.swo
+
+# VS Code settings
+.vscode/
