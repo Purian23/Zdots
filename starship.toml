@@ -1,7 +1,7 @@
 # Two-line prompt
 format = """
-╭─[](bg:transparent fg:bright-purple)$os[](fg:bright-purple bg:cyan)$directory$git_branch$git_status$git_metrics[](fg:cyan bg:transparent)$status
-╰─$character
+[](bg:transparent fg:bright-purple)$os[](fg:bright-purple bg:cyan)$directory$git_branch$git_status$git_metrics[](fg:cyan bg:transparent)$status
+$character
 """
 
 [status]
