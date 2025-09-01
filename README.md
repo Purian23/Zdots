@@ -1,23 +1,25 @@
-# Modular ZSH Dotfiles for Arch Linux (Zdots)
+# Modular ZSH Dotfiles (Zdots)
 
-![Shell Benchmark](https://img.shields.io/badge/zsh%20startup%20time-230ms-brightgreen)
+![Shell Benchmark](https://img.shields.io/badge/zsh%20startup%20time-45ms-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 A clean, reproducible Zsh setup designed for speed, system hygiene, and portability.  
-Includes fzf-tab, zoxide, starship, and lazy-loaded NVM — optimized for Arch environments and terminal workflows.
+Includes fzf-tab, zoxide, starship, and lazy-loaded NVM — optimized for modern terminal workflows.
 
 ## 🚀 Features
-- Modular source files in `~/.zdots/zsh/` 
+- Modular source files in `~/.zdots/zsh/`
 - fzf-tab fuzzy completions  
 - zoxide smart directory jumping  
 - Starship prompt  
 - Lazy-loaded NVM with dynamic PATH  
 - Alias and install script friendly
 - VS Code compatibility  
-- Sub-250ms shell startup time  
+- Sub-50ms shell startup time  
 - Backs up your existing ~/.zshrc to ~/.zshrc.bak.TIMESTAMP
-- Merges your aliases, exports, PATH changes, and functions from the backup into the new `.zshrc`
-- Concatenates zdots’ modular files into a single .zshrc for speed
+- Concatenates Zdots’ modular files into a single `.zshrc` for speed
+- Optional merge from your previous `~/.zshrc` (aliases, exports, PATH changes, functions)
+- Cross-distro zsh installation (auto-detects pacman/apt/dnf/yum/zypper)
+- All prompts support non-interactive/CI flags and are logged to `~/.cache/zdots-setup.log`
 
 ## 🛠 Installation
 Clone the repo and run the setup script:
@@ -30,8 +32,10 @@ Then reload your shell:
 ```bash
 source ~/.zshrc
 ```
-⚠️ If Zsh is not installed, the setup script will prompt you to install it and set it as your default shell.  
-You can also install it manually via `sudo pacman -S zsh` and run `chsh -s $(which zsh)` to switch.
+Notes:
+- If zsh is missing, the script autodetects your package manager and tries to install it (or honor `ZDOTS_PM`).
+- You’ll be offered to switch your default shell to zsh and to install the included Starship config.
+ - Logging: output is saved to `~/.cache/zdots-setup.log` (override path with `ZDOTS_LOGFILE`).
 
 ## 🧩 VS Code Compatibility
 To ensure full `.zshrc` sourcing and NVM support in VS Code, add this to your `settings.json`:
@@ -47,11 +51,20 @@ To ensure full `.zshrc` sourcing and NVM support in VS Code, add this to your `s
 ```
 This launches Zsh as a login shell, ensuring all plugins, PATH logic, and NVM are properly initialized.
 
+## ♻️ Backup merge flow
+If a previous `~/.zshrc` is found, the installer asks once whether you want to merge content from it. If you opt in, you can merge per-category or choose “merge all.” Categories:
+- aliases
+- exports
+- PATH assignments
+- functions
+
 ## 🧪 Performance
 Shell startup time benchmark:
 ```bash
 time zsh -i -c exit
-# ~0.230s total
+# ~0.045s total
+# Sample (hardware may vary):
+# zsh -i -c exit  0.03s user 0.01s system 101% cpu 0.045 total
 ```
 Test your setup by uncommenting the following: 
 ```bash
@@ -60,17 +73,21 @@ zprof
 ```
 Use `zmodload zsh/zprof` and `zprof` to profile plugin load times.
 
-## 📦 Packages Installed by `setup.sh`
+## 📦 Recommended packages (not auto-installed)
+These tools are commonly used with Zdots but aren’t installed by the setup script:
 ```text
-bat
-eza
-fzf
-p7zip
-starship
-unrar
-unzip
-zoxide
+bat, eza, fzf, p7zip, starship, unrar, unzip, zoxide
 ```
+Install them with your distro’s package manager. Examples:
+- Arch (pacman): `sudo pacman -S bat eza fzf p7zip starship unrar unzip zoxide`
+- Debian/Ubuntu (apt): `sudo apt-get install bat eza fzf p7zip-full starship unrar unzip zoxide`
+- Fedora (dnf): `sudo dnf install bat eza fzf p7zip p7zip-plugins starship unrar unzip zoxide`
+
+## 🧰 Distro support
+- Auto-detects: pacman, apt/apt-get, dnf, yum, zypper
+
+Tested on recent Arch, Ubuntu, Fedora; other distros welcome via PRs.
+
 ## Uninstall
 To revert to a previous backup:
 ```bash
