@@ -9,12 +9,13 @@ HISTSIZE=9023
 SAVEHIST=9023
 
 # ---- Key Bindings ----
-bindkey -v
+bindkey -e
 bindkey '^[[A' history-search-backward
 bindkey '^[[B' history-search-forward
 bindkey '^R' history-incremental-search-backward
 bindkey '^S' history-incremental-search-forward
-export KEYTIMEOUT=1
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
 
 # ---- PATH ----
 typeset -U path
