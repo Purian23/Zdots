@@ -1,9 +1,9 @@
-# zdots developer .zshrc
-# This file is not used directly by users.
-# The setup.sh script concatenates the modular files in zsh/ into a single ~/.zshrc.
+# Developer .zshrc — not used by end users
+# This is only for testing Zdots modules directly from the repo.
+# End users should run setup.sh to generate their ~/.zshrc.
 
-source ~/.zdots/zsh/options.zsh
-source ~/.zdots/zsh/aliases.zsh
-source ~/.zdots/zsh/functions.zsh
-source ~/.zdots/zsh/plugins.zsh
-source ~/.zdots/zsh/prompt.zsh
+MODULE_DIR="${ZDOTDIR:-$HOME}/.zdots/zsh"
+
+for module in "$MODULE_DIR"/*.zsh; do
+    source "$module"
+done

@@ -75,7 +75,7 @@ zoxide
 To revert to a previous backup:
 ```bash
 mv ~/.zshrc ~/.zshrc.generated.bak
-mv ~/.zshrc.bak.YYYYMMDDHHMMSS ~/.zshrc
+mv ~/.zshrc.bak.YYYYMMDDHHMM ~/.zshrc
 ```
 Remove the repo if desired:
 ```bash
