@@ -6,9 +6,9 @@ $character
 
 [status]
 disabled = false
-symbol = "✘ "
+symbol = "✘"
 style = "fg:red bg:transparent"
-format = "[$symbol$status]($style) "
+format = "[ $status$symbol]($style)"
 
 [os]
 disabled = false
@@ -64,5 +64,5 @@ style = "fg:black bg:cyan"
 format = "([ +$added]($added_style))([ -$deleted]($deleted_style))"
 only_nonzero_diffs = true
 added_style = "fg:black bg:cyan"
-deleted_style = "fg:black bg:235"
+deleted_style = "fg:black bg:cyan"
 disabled = false
