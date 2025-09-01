@@ -1,0 +1,65 @@
+# Two-line prompt
+format = """
+╭─[](bg:black fg:green)$os[](fg:green bg:blue)$time[](fg:blue bg:cyan)$directory$git_branch$git_status$git_metrics[](fg:cyan bg:black)
+╰─$character
+"""
+
+[os]
+disabled = false
+format = "[$symbol ]($style)"
+style = "bg:green fg:black"
+
+[os.symbols]
+Alpine = ""
+Arch = ""
+Debian = ""
+EndeavourOS = ""
+Fedora = ""
+Gentoo = ""
+Macos = ""
+Manjaro = ""
+Mint = ""
+NixOS = ""
+openSUSE = ""
+Pop = ""
+Raspbian = ""
+Redhat = ""
+RedHatEnterprise = ""
+RockyLinux = ""
+Ubuntu = ""
+Void = ""
+Linux = ""
+
+[time]
+disabled = false
+time_format = "%R"
+style = "bg:blue fg:black"
+format = "[ 󱑍 $time ]($style)"
+
+[directory]
+format = "[ $path ]($style)"
+style = "fg:black bg:cyan"
+home_symbol = "~"
+truncation_symbol = "…/"
+truncate_to_repo = false
+read_only = ""
+
+[git_branch]
+format = "[| $symbol$branch]($style)"
+symbol = "  "
+style = "fg:black bg:cyan"
+
+[git_status]
+# Show only if there is status output
+format = "([$all_status]($style))"
+style = "fg:black bg:cyan"
+
+[git_metrics]
+format = "([ +$added]($added_style))([ -$deleted]($deleted_style))"
+only_nonzero_diffs = true
+added_style = "fg:black bg:cyan"
+deleted_style = "fg:black bg:235"
+disabled = false
+
+[character]
+error_symbol   = "[✗](red) "

@@ -14,6 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/zsh"
 FINAL_ZSHRC="$HOME/.zshrc"
 BACKUP_FILE=""
+STARSHIP_CONFIG="$HOME/.config/starship.toml"
+STARSHIP_SOURCE="$SCRIPT_DIR/starship.toml"
 
 # === Ensure Zsh is installed ===
 if ! command -v zsh >/dev/null 2>&1; then
@@ -155,6 +157,32 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
   done
 fi
 
+# === Install Starship configuration ===
+if [[ -f "$STARSHIP_SOURCE" ]]; then
+  echo -e "${BLUE}▶ Setting up Starship configuration${RESET}"
+  mkdir -p "$(dirname "$STARSHIP_CONFIG")"
+  
+  if [[ -f "$STARSHIP_CONFIG" ]]; then
+    echo -e "${YELLOW}Existing starship.toml found at $STARSHIP_CONFIG${RESET}"
+    read -rp "$(echo -e "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}")" REPLY
+    if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+      ts="$(date +%Y%m%d%H%M)"
+      STARSHIP_BACKUP="$STARSHIP_CONFIG.bak.$ts"
+      echo -e "${YELLOW}Backing up existing config to $STARSHIP_BACKUP${RESET}"
+      mv "$STARSHIP_CONFIG" "$STARSHIP_BACKUP"
+      cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
+      echo -e "${BLUE}Starship config installed${RESET}"
+    else
+      echo -e "${BLUE}Keeping existing starship config${RESET}"
+    fi
+  else
+    cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
+    echo -e "${BLUE}Starship config installed to $STARSHIP_CONFIG${RESET}"
+  fi
+else
+  echo -e "${YELLOW}Starship.toml not found in Zdots directory, skipping${RESET}"
+fi
+
 # === Offer default shell switch ===
 if [ "$SHELL" != "$(command -v zsh)" ]; then
   echo -e "${YELLOW}Change default shell to Zsh? [Y/n]${RESET}"
@@ -176,3 +204,6 @@ if [ -n "${BASH_VERSION-}" ]; then
 fi
 
 echo -e "${BLUE}✅ Zdots setup complete.${RESET}"
+echo -e "${YELLOW}💡 Install and configure your terminal with a Mono Nerd Font${RESET}"
+echo -e "${YELLOW}   Recommended: FiraCode Nerd Font or similar from https://www.nerdfonts.com${RESET}"
+echo -e "${YELLOW}   After installation, make sure to set the font in your terminal preferences or configuration.${RESET}"
