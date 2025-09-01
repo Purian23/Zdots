@@ -1,13 +1,13 @@
 # Two-line prompt
 format = """
-╭─[](bg:black fg:green)$os[](fg:green bg:blue)$time[](fg:blue bg:cyan)$directory$git_branch$git_status$git_metrics[](fg:cyan bg:black)
+╭─[](bg:transparent fg:bright-purple)$os[](fg:bright-purple bg:cyan)$directory$git_branch$git_status$git_metrics[](fg:cyan bg:transparent)
 ╰─$character
 """
 
 [os]
 disabled = false
 format = "[$symbol ]($style)"
-style = "bg:green fg:black"
+style = "bg:bright-purple fg:black"
 
 [os.symbols]
 Alpine = ""
@@ -31,9 +31,9 @@ Void = ""
 Linux = ""
 
 [time]
-disabled = false
+disabled = true
 time_format = "%R"
-style = "bg:blue fg:black"
+style = "bg:white fg:black"
 format = "[ 󱑍 $time ]($style)"
 
 [directory]
