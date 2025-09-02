@@ -1,4 +1,2 @@
-# ---- Heavy Plugins (Async) ----
-zinit wait lucid for \
-  zsh-users/zsh-syntax-highlighting \
-  zsh-users/zsh-autosuggestions
+zinit light zsh-users/zsh-syntax-highlighting
+zinit light zsh-users/zsh-autosuggestions
