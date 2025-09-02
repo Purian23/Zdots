@@ -195,7 +195,9 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
   merge_mode="${ZDOTS_MERGE:-}"
   merge_choice=""
   merge_all=0
-  case "${merge_mode,,}" in
+  # Convert to lowercase using tr for compatibility
+  merge_mode_lower="$(echo "$merge_mode" | tr '[:upper:]' '[:lower:]')"
+  case "$merge_mode_lower" in
     0|no|none) merge_choice="n" ;;
     1|yes|interactive) merge_choice="y" ;;
     all) merge_choice="y"; merge_all=1 ;;
