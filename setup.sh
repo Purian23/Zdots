@@ -48,6 +48,17 @@ ask_yes_no() {
   fi
 }
 
+# === OS Detection ===
+detect_os() {
+  case "$(uname -s)" in
+    Darwin*) echo "macos" ;;
+    Linux*) echo "linux" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+OS_TYPE="$(detect_os)"
+
 # === Package manager detection ===
 install_zsh_if_missing() {
   if command -v zsh >/dev/null 2>&1; then
@@ -61,6 +72,7 @@ install_zsh_if_missing() {
   local pm="${ZDOTS_PM:-}"
   if [[ -n "$pm" ]]; then
     case "$pm" in
+      brew|homebrew) brew install zsh && return 0 ;;
       pacman) sudo pacman -Sy --needed --noconfirm zsh && return 0 ;;
       apt|apt-get) sudo apt-get update && sudo apt-get install -y zsh && return 0 ;;
       dnf) sudo dnf install -y zsh && return 0 ;;
@@ -70,18 +82,37 @@ install_zsh_if_missing() {
     echo -e "${RED}Unknown package manager in ZDOTS_PM='$pm'. Falling back to auto-detect.${RESET}"
   fi
 
-  if command -v pacman >/dev/null 2>&1; then
-    sudo pacman -Sy --needed --noconfirm zsh || true
-  elif command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update && sudo apt-get install -y zsh || true
-  elif command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y zsh || true
-  elif command -v yum >/dev/null 2>&1; then
-    sudo yum install -y zsh || true
-  elif command -v zypper >/dev/null 2>&1; then
-    sudo zypper -n install zsh || true
+  # Auto-detect based on OS
+  if [[ "$OS_TYPE" == "macos" ]]; then
+    if command -v brew >/dev/null 2>&1; then
+      brew install zsh || true
+    else
+      echo -e "${YELLOW}Homebrew not found. Installing Homebrew first...${RESET}"
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+      if command -v brew >/dev/null 2>&1; then
+        brew install zsh || true
+      else
+        echo -e "${RED}Could not install Homebrew. Please install zsh manually.${RESET}"
+        return 1
+      fi
+    fi
+  elif [[ "$OS_TYPE" == "linux" ]]; then
+    if command -v pacman >/dev/null 2>&1; then
+      sudo pacman -Sy --needed --noconfirm zsh || true
+    elif command -v apt-get >/dev/null 2>&1; then
+      sudo apt-get update && sudo apt-get install -y zsh || true
+    elif command -v dnf >/dev/null 2>&1; then
+      sudo dnf install -y zsh || true
+    elif command -v yum >/dev/null 2>&1; then
+      sudo yum install -y zsh || true
+    elif command -v zypper >/dev/null 2>&1; then
+      sudo zypper -n install zsh || true
+    else
+      echo -e "${RED}Could not detect a supported package manager. Please install zsh manually.${RESET}"
+      return 1
+    fi
   else
-    echo -e "${RED}Could not detect a supported package manager. Please install zsh manually.${RESET}"
+    echo -e "${RED}Unsupported OS: $(uname -s). Please install zsh manually.${RESET}"
     return 1
   fi
 
