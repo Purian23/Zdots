@@ -9,6 +9,16 @@ RESET="\033[0m"
 
 echo -e "${BLUE}=== Zdots Setup (Pure Modular, Smart Installer) ===${RESET}"
 
+# === Logging (tee all output) ===
+LOGFILE="${ZDOTS_LOGFILE:-$HOME/.cache/zdots-setup.log}"
+mkdir -p "$(dirname "$LOGFILE")"
+# Append a header with timestamp
+{
+  echo "---"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') Starting Zdots setup"
+} >> "$LOGFILE"
+exec > >(tee -a "$LOGFILE") 2>&1
+
 # === Paths ===
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$SCRIPT_DIR/zsh"
@@ -17,13 +27,74 @@ BACKUP_FILE=""
 STARSHIP_CONFIG="$HOME/.config/starship.toml"
 STARSHIP_SOURCE="$SCRIPT_DIR/starship.toml"
 
+# === Prompt helper ===
+# ask_yes_no "prompt" default(Y|N) -> echoes 'y' or 'n'
+ask_yes_no() {
+  local prompt="$1" default_answer="$2" reply
+  # Global overrides
+  if [[ "${ZDOTS_NO:-}" == "1" ]]; then echo y | tr 'yn' 'ny'; return; fi # always 'n'
+  if [[ "${ZDOTS_YES:-}" == "1" ]]; then echo y; return; fi            # always 'y'
+  # Non-interactive fallback
+  if [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
+    [[ "$default_answer" =~ ^[Yy]$ ]] && echo y || echo n
+    return
+  fi
+  # Interactive
+  read -rp "$(echo -e "$prompt")" reply
+  if [[ -z "$reply" ]]; then
+    [[ "$default_answer" =~ ^[Yy]$ ]] && echo y || echo n
+  else
+    [[ "$reply" =~ ^[Yy]$ ]] && echo y || echo n
+  fi
+}
+
+# === Package manager detection ===
+install_zsh_if_missing() {
+  if command -v zsh >/dev/null 2>&1; then
+    echo -e "${BLUE}Zsh is already installed.${RESET}"
+    return 0
+  fi
+
+  echo -e "${YELLOW}Zsh not found. Attempting to install...${RESET}"
+
+  # Optional override
+  local pm="${ZDOTS_PM:-}"
+  if [[ -n "$pm" ]]; then
+    case "$pm" in
+      pacman) sudo pacman -Sy --needed --noconfirm zsh && return 0 ;;
+      apt|apt-get) sudo apt-get update && sudo apt-get install -y zsh && return 0 ;;
+      dnf) sudo dnf install -y zsh && return 0 ;;
+      yum) sudo yum install -y zsh && return 0 ;;
+      zypper) sudo zypper -n install zsh && return 0 ;;
+    esac
+    echo -e "${RED}Unknown package manager in ZDOTS_PM='$pm'. Falling back to auto-detect.${RESET}"
+  fi
+
+  if command -v pacman >/dev/null 2>&1; then
+    sudo pacman -Sy --needed --noconfirm zsh || true
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y zsh || true
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y zsh || true
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y zsh || true
+  elif command -v zypper >/dev/null 2>&1; then
+    sudo zypper -n install zsh || true
+  else
+    echo -e "${RED}Could not detect a supported package manager. Please install zsh manually.${RESET}"
+    return 1
+  fi
+
+  if command -v zsh >/dev/null 2>&1; then
+    echo -e "${BLUE}Zsh installed successfully.${RESET}"
+  else
+    echo -e "${RED}Automated zsh installation appears to have failed. Please install manually and re-run.${RESET}"
+    return 1
+  fi
+}
+
 # === Ensure Zsh is installed ===
-if ! command -v zsh >/dev/null 2>&1; then
-  echo -e "${YELLOW}Zsh not found. Installing with pacman...${RESET}"
-  sudo pacman -Sy --needed --noconfirm zsh
-else
-  echo -e "${BLUE}Zsh is already installed.${RESET}"
-fi
+install_zsh_if_missing || true
 
 # === Ensure Zinit is installed ===
 ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
@@ -87,74 +158,98 @@ fi
 # === Merge from backup ===
 if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
   echo -e "${YELLOW}A previous .zshrc backup was found: $BACKUP_FILE${RESET}"
-  imported_any=false
-  maybe_add_footer() {
-    if [ "$imported_any" = false ]; then
-      {
-        echo ""
-        echo "# -------------------------------------------------------------------"
-        echo "# Imported from previous .zshrc backup on $(date)"
-        echo "# -------------------------------------------------------------------"
-      } >> "$FINAL_ZSHRC"
-      imported_any=true
+  # Respect env override for merge decision
+  merge_mode="${ZDOTS_MERGE:-}"
+  merge_choice=""
+  merge_all=0
+  case "${merge_mode,,}" in
+    0|no|none) merge_choice="n" ;;
+    1|yes|interactive) merge_choice="y" ;;
+    all) merge_choice="y"; merge_all=1 ;;
+  esac
+  if [[ -z "$merge_choice" ]]; then
+    if [[ $(ask_yes_no "${YELLOW}Review and merge anything from the backup into the new config? [y/N]: ${RESET}" N) == y ]]; then
+      merge_choice="y"
+    else
+      merge_choice="n"
     fi
-  }
+  fi
 
-  for section in aliases exports PATH functions; do
-    case $section in
-      aliases)
-        read -rp "$(echo -e "${YELLOW}Merge aliases from backup? [Y/n]: ${RESET}")" REPLY
-        if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
-          grep -E '^alias ' "$BACKUP_FILE" | while read -r line; do
-            if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
-              maybe_add_footer
-              echo "$line" >> "$FINAL_ZSHRC"
-              echo -e "${BLUE}Imported alias:${RESET} $line"
-            fi
-          done
-        fi
-        ;;
-      exports)
-        read -rp "$(echo -e "${YELLOW}Merge exports from backup? [Y/n]: ${RESET}")" REPLY
-        if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
-          grep -E '^export ' "$BACKUP_FILE" | while read -r line; do
-            if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
-              maybe_add_footer
-              echo "$line" >> "$FINAL_ZSHRC"
-              echo -e "${BLUE}Imported export:${RESET} $line"
-            fi
-          done
-        fi
-        ;;
-      PATH)
-        read -rp "$(echo -e "${YELLOW}Merge PATH modifications from backup? [Y/n]: ${RESET}")" REPLY
-        if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
-          grep -E '^PATH=' "$BACKUP_FILE" | while read -r line; do
-            if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
-              maybe_add_footer
-              echo "$line" >> "$FINAL_ZSHRC"
-              echo -e "${BLUE}Imported PATH modification:${RESET} $line"
-            fi
-          done
-        fi
-        ;;
-      functions)
-        read -rp "$(echo -e "${YELLOW}Merge functions from backup? [Y/n]: ${RESET}")" REPLY
-        if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
-          awk '
-            /^([[:space:]]*function[[:space:]]+[a-zA-Z0-9_]+\s*\(\)\s*\{|^[a-zA-Z0-9_]+\s*\(\)\s*\{)/ {infunc=1; fn=$0 ORS; next}
-            infunc {fn=fn $0 ORS; if (/^\}/) {print fn; infunc=0}}
-          ' "$BACKUP_FILE" | while IFS= read -r block; do
-            if ! grep -Fq "$block" "$FINAL_ZSHRC"; then
-              maybe_add_footer
-              printf "%s\n" "$block" >> "$FINAL_ZSHRC"
-              echo -e "${BLUE}Imported function:${RESET} $(echo "$block" | head -n1)"
-            fi
-          done
-        fi
-        ;;
-    esac
-  done
+  if [[ "$merge_choice" == "y" ]]; then
+    imported_any=false
+    maybe_add_footer() {
+      if [ "$imported_any" = false ]; then
+        {
+          echo ""
+          echo "# -------------------------------------------------------------------"
+          echo "# Imported from previous .zshrc backup on $(date)"
+          echo "# -------------------------------------------------------------------"
+        } >> "$FINAL_ZSHRC"
+        imported_any=true
+      fi
+    }
+
+    # Offer merge-all if not already set by env
+    if (( merge_all == 0 )); then
+      if [[ $(ask_yes_no "${YELLOW}Merge all categories from backup automatically? [y/N]: ${RESET}" N) == y ]]; then
+        merge_all=1
+      fi
+    fi
+
+    for section in aliases exports PATH functions; do
+      case $section in
+        aliases)
+          if (( merge_all )) || [[ $(ask_yes_no "${YELLOW}Merge aliases from backup? [Y/n]: ${RESET}" Y) == y ]]; then
+            grep -E '^alias ' "$BACKUP_FILE" | while read -r line; do
+              if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
+                maybe_add_footer
+                echo "$line" >> "$FINAL_ZSHRC"
+                echo -e "${BLUE}Imported alias:${RESET} $line"
+              fi
+            done
+          fi
+          ;;
+        exports)
+          if (( merge_all )) || [[ $(ask_yes_no "${YELLOW}Merge exports from backup? [Y/n]: ${RESET}" Y) == y ]]; then
+            grep -E '^export ' "$BACKUP_FILE" | while read -r line; do
+              if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
+                maybe_add_footer
+                echo "$line" >> "$FINAL_ZSHRC"
+                echo -e "${BLUE}Imported export:${RESET} $line"
+              fi
+            done
+          fi
+          ;;
+        PATH)
+          if (( merge_all )) || [[ $(ask_yes_no "${YELLOW}Merge PATH modifications from backup? [Y/n]: ${RESET}" Y) == y ]]; then
+            grep -E '^PATH=' "$BACKUP_FILE" | while read -r line; do
+              if ! grep -Fxq "$line" "$FINAL_ZSHRC"; then
+                maybe_add_footer
+                echo "$line" >> "$FINAL_ZSHRC"
+                echo -e "${BLUE}Imported PATH modification:${RESET} $line"
+              fi
+            done
+          fi
+          ;;
+        functions)
+          if (( merge_all )) || [[ $(ask_yes_no "${YELLOW}Merge functions from backup? [Y/n]: ${RESET}" Y) == y ]]; then
+            awk '
+              /^([[:space:]]*function[[:space:]]+[a-zA-Z0-9_]+\s*\(\)\s*\{|^[a-zA-Z0-9_]+\s*\(\)\s*\{)/ {infunc=1; fn=$0 ORS; next}
+              infunc {fn=fn $0 ORS; if (/^\}/) {print fn; infunc=0}}
+            ' "$BACKUP_FILE" | while IFS= read -r block; do
+              if ! grep -Fq "$block" "$FINAL_ZSHRC"; then
+                maybe_add_footer
+                printf "%s\n" "$block" >> "$FINAL_ZSHRC"
+                echo -e "${BLUE}Imported function:${RESET} $(echo "$block" | head -n1)"
+              fi
+            done
+          fi
+          ;;
+      esac
+    done
+  else
+    echo -e "${BLUE}Skipping all backup merge prompts per your choice.${RESET}"
+  fi
 fi
 
 # === Install Starship configuration ===
@@ -164,8 +259,7 @@ if [[ -f "$STARSHIP_SOURCE" ]]; then
   
   if [[ -f "$STARSHIP_CONFIG" ]]; then
     echo -e "${YELLOW}Existing starship.toml found at $STARSHIP_CONFIG${RESET}"
-    read -rp "$(echo -e "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}")" REPLY
-    if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+  if [[ $(ask_yes_no "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}" N) == y ]]; then
       ts="$(date +%Y%m%d%H%M)"
       STARSHIP_BACKUP="$STARSHIP_CONFIG.bak.$ts"
       echo -e "${YELLOW}Backing up existing config to $STARSHIP_BACKUP${RESET}"
@@ -185,9 +279,7 @@ fi
 
 # === Offer default shell switch ===
 if [ "$SHELL" != "$(command -v zsh)" ]; then
-  echo -e "${YELLOW}Change default shell to Zsh? [Y/n]${RESET}"
-  read -r REPLY
-  if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
+  if [[ $(ask_yes_no "${YELLOW}Change default shell to Zsh? [Y/n]: ${RESET}" Y) == y ]]; then
     chsh -s "$(command -v zsh)"
     echo -e "${YELLOW}Default shell changed. Takes effect on next login.${RESET}"
   fi
@@ -195,9 +287,7 @@ fi
 
 # === Optional immediate switch ===
 if [ -n "${BASH_VERSION-}" ]; then
-  echo -e "${YELLOW}Switch to Zsh now and load your new config? [Y/n]${RESET}"
-  read -r REPLY
-  if [[ "$REPLY" =~ ^[Yy]$ || -z "$REPLY" ]]; then
+  if [[ $(ask_yes_no "${YELLOW}Switch to Zsh now and load your new config? [Y/n]: ${RESET}" Y) == y ]]; then
     echo -e "${BLUE}Switching to Zsh...${RESET}"
     exec zsh -i -c "source ~/.zshrc; exec zsh -l"
   fi
