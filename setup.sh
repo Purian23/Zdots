@@ -159,7 +159,9 @@ if [[ -f "$MODULE_DIR/order.txt" ]]; then
   done < "$MODULE_DIR/order.txt"
 else
   echo -e "${BLUE}Using lexicographic filename order${RESET}"
-  mapfile -t modules < <(find "$MODULE_DIR" -maxdepth 1 -type f -name '*.zsh' | sort)
+  while IFS= read -r line; do
+    modules+=("$line")
+  done < <(find "$MODULE_DIR" -maxdepth 1 -type f -name '*.zsh' | sort)
 fi
 
 missing=0
