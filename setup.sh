@@ -305,8 +305,12 @@ if [[ -f "$STARSHIP_SOURCE" ]]; then
       echo -e "${BLUE}Keeping existing starship config${RESET}"
     fi
   else
-    cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
-    echo -e "${BLUE}Starship config installed to $STARSHIP_CONFIG${RESET}"
+  if [[ $(ask_yes_no "${YELLOW}Install Zdots default starship config to $STARSHIP_CONFIG? [y/N]: ${RESET}" N) == y ]]; then
+      cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
+      echo -e "${BLUE}Starship config installed to $STARSHIP_CONFIG${RESET}"
+    else
+      echo -e "${BLUE}Skipping starship config installation; no config will be created${RESET}"
+    fi
   fi
 else
   echo -e "${YELLOW}Starship.toml not found in Zdots directory, skipping${RESET}"
