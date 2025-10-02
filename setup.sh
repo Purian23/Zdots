@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # === Colors ===
-BLUE="\033[0;34m"
+BLUE="\033[1;36m"
 YELLOW="\033[1;33m"
 RED="\033[0;31m"
 RESET="\033[0m"
@@ -57,7 +57,50 @@ detect_os() {
   esac
 }
 
+# === Distribution Detection ===
+detect_distro() {
+  if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    echo "${ID:-unknown}"
+  elif [[ -f /etc/fedora-release ]]; then
+    echo "fedora"
+  elif [[ -f /etc/debian_version ]]; then
+    echo "debian"
+  elif [[ -f /etc/arch-release ]]; then
+    echo "arch"
+  else
+    echo "unknown"
+  fi
+}
+
 OS_TYPE="$(detect_os)"
+DISTRO="$(detect_distro)"
+
+# Show system info
+if [[ "$OS_TYPE" == "linux" ]]; then
+  echo -e "${BLUE}Detected: $DISTRO Linux${RESET}"
+  if [[ "$DISTRO" == "fedora" && -f /etc/fedora-release ]]; then
+    FEDORA_VERSION=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
+    echo -e "${BLUE}Fedora version: $FEDORA_VERSION${RESET}"
+    if [[ "$FEDORA_VERSION" -ge 42 ]]; then
+      echo -e "${BLUE}Modern Fedora detected - dnf uses DNF5 backend${RESET}"
+    fi
+  fi
+fi
+
+# === Check for sudo availability (skip on macOS with Homebrew) ===
+check_sudo() {
+  if [[ "$OS_TYPE" == "macos" ]]; then
+    return 0  # macOS typically doesn't need sudo for Homebrew
+  fi
+  
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo -e "${RED}sudo is required for package installation but not found.${RESET}"
+    echo -e "${YELLOW}Please install sudo or run this script as root.${RESET}"
+    return 1
+  fi
+  return 0
+}
 
 # === Package manager detection ===
 install_zsh_if_missing() {
@@ -67,6 +110,11 @@ install_zsh_if_missing() {
   fi
 
   echo -e "${YELLOW}Zsh not found. Attempting to install...${RESET}"
+  
+  # Check sudo availability for Linux systems
+  if [[ "$OS_TYPE" == "linux" ]] && ! check_sudo; then
+    return 1
+  fi
 
   # Optional override
   local pm="${ZDOTS_PM:-}"
@@ -78,11 +126,12 @@ install_zsh_if_missing() {
       dnf) sudo dnf install -y zsh && return 0 ;;
       yum) sudo yum install -y zsh && return 0 ;;
       zypper) sudo zypper -n install zsh && return 0 ;;
+      apk) sudo apk add zsh && return 0 ;;
     esac
     echo -e "${RED}Unknown package manager in ZDOTS_PM='$pm'. Falling back to auto-detect.${RESET}"
   fi
 
-  # Auto-detect based on OS
+  # Auto-detect based on OS and available package managers
   if [[ "$OS_TYPE" == "macos" ]]; then
     if command -v brew >/dev/null 2>&1; then
       brew install zsh || true
@@ -97,18 +146,29 @@ install_zsh_if_missing() {
       fi
     fi
   elif [[ "$OS_TYPE" == "linux" ]]; then
+    # Try package managers in order of preference/commonality
     if command -v pacman >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected Pacman (Arch-based)${RESET}"
       sudo pacman -Sy --needed --noconfirm zsh || true
     elif command -v apt-get >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected APT (Debian-based)${RESET}"
       sudo apt-get update && sudo apt-get install -y zsh || true
     elif command -v dnf >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected DNF (Fedora/RHEL)${RESET}"
       sudo dnf install -y zsh || true
-    elif command -v yum >/dev/null 2>&1; then
-      sudo yum install -y zsh || true
     elif command -v zypper >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected Zypper (openSUSE)${RESET}"
       sudo zypper -n install zsh || true
+    elif command -v yum >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected YUM (CentOS/RHEL)${RESET}"
+      sudo yum install -y zsh || true
+    elif command -v apk >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected APK (Alpine)${RESET}"
+      sudo apk add zsh || true
     else
-      echo -e "${RED}Could not detect a supported package manager. Please install zsh manually.${RESET}"
+      echo -e "${RED}Could not detect a supported package manager.${RESET}"
+      echo -e "${YELLOW}Supported: pacman, apt-get, dnf, zypper, yum, apk${RESET}"
+      echo -e "${YELLOW}Please install zsh manually and re-run this script.${RESET}"
       return 1
     fi
   else
@@ -333,6 +393,10 @@ if [ -n "${BASH_VERSION-}" ]; then
 fi
 
 echo -e "${BLUE}✅ Zdots setup complete.${RESET}"
+echo -e "${BLUE}System: $OS_TYPE${RESET}"
+if [[ "$OS_TYPE" == "linux" ]]; then
+  echo -e "${BLUE}Distribution: $DISTRO${RESET}"
+fi
 echo -e "${YELLOW}💡 Install and configure your terminal with a Mono Nerd Font${RESET}"
 echo -e "${YELLOW}   Recommended: FiraCode Nerd Font or similar from https://www.nerdfonts.com${RESET}"
 echo -e "${YELLOW}   After installation, make sure to set the font in your terminal preferences or configuration.${RESET}"

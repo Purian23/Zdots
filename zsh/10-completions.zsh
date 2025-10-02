@@ -1,6 +1,17 @@
 # ---- Completion ----
 autoload -Uz compinit
-[[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]] && compinit -C || compinit
+
+# Initialize completions with better cache handling
+if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
+  compinit -C
+else
+  compinit
+  # Touch the dump file to reset the check
+  touch "${ZDOTDIR:-$HOME}/.zcompdump"
+fi
+
+# Force reload completions for new functions
+autoload -U +X bashcompinit && bashcompinit
 
 # ---- Completion Styles ----
 zstyle ':completion:*:git-checkout:*' sort false

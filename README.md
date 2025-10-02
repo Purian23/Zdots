@@ -84,9 +84,9 @@ Install them with your distro’s package manager. Examples:
 - Fedora (dnf): `sudo dnf install bat eza fzf p7zip p7zip-plugins starship unrar unzip zoxide`
 
 ## 🧰 Distro support
-- Auto-detects: pacman, apt/apt-get, dnf, yum, zypper
+- Auto-detects: pacman, apt/apt-get, dnf (with DNF5 support), zypper, yum, apk
 
-Tested on recent Arch, Ubuntu, Fedora; other distros welcome via PRs.
+Tested on recent Arch, Ubuntu, Fedora 42+, Alpine; other distros welcome via PRs.
 
 ## Uninstall
 To revert to a previous backup:
