@@ -5,9 +5,24 @@ export NVM_DIR="$HOME/.nvm"
 if [ -s "$NVM_DIR/alias/default" ]; then
   DEFAULT_VERSION=$(cat "$NVM_DIR/alias/default")
   
-  if [ "${DEFAULT_VERSION#lts/}" != "${DEFAULT_VERSION}" ]; then
+  # Handle lts/* wildcard pattern
+  if [ "${DEFAULT_VERSION}" = "lts/*" ]; then
+    # Find the latest LTS version directory
+    if [ -d "$NVM_DIR/versions/node" ]; then
+      DEFAULT_VERSION=$(find "$NVM_DIR/versions/node" -maxdepth 1 -name "v*" -type d 2>/dev/null | \
+        xargs -I {} basename {} | \
+        grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | \
+        sort -V | \
+        tail -1)
+    fi
+  elif [ "${DEFAULT_VERSION#lts/}" != "${DEFAULT_VERSION}" ]; then
+    # Handle specific lts/name aliases
     if [ -s "$NVM_DIR/alias/${DEFAULT_VERSION}" ]; then
       DEFAULT_VERSION=$(cat "$NVM_DIR/alias/${DEFAULT_VERSION}")
+      # Handle double resolution for nested aliases
+      if [ -s "$NVM_DIR/alias/${DEFAULT_VERSION}" ]; then
+        DEFAULT_VERSION=$(cat "$NVM_DIR/alias/${DEFAULT_VERSION}")
+      fi
     fi
   fi
   
