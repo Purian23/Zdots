@@ -1,119 +1,89 @@
-# Modular ZSH Dotfiles (Zdots)
+# Zdots
 
-![Shell Benchmark](https://img.shields.io/badge/zsh%20startup%20time-45ms-brightgreen)
+![Zsh Startup](https://img.shields.io/badge/zsh-35ms-brightgreen)
+![Fish Startup](https://img.shields.io/badge/fish-8ms-brightgreen)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
-A clean, reproducible Zsh setup designed for speed, system hygiene, and portability.  
-Includes fzf-tab, zoxide, starship, and lazy-loaded NVM — optimized for modern terminal workflows.
+Modular dotfiles for **Zsh** and **Fish**. One repo, both shells configured, switch anytime.
 
-## 🚀 Features
-- Modular source files in `~/.zdots/zsh/`
-- fzf-tab fuzzy completions  
-- zoxide smart directory jumping  
-- Starship prompt  
-- Lazy-loaded NVM with dynamic PATH  
-- Alias and install script friendly
-- VS Code compatibility  
-- Sub-50ms shell startup time  
-- Backs up your existing ~/.zshrc to ~/.zshrc.bak.TIMESTAMP
-- Concatenates Zdots' modular files into a single `.zshrc` for speed
-- Optional merge from your previous `~/.zshrc` (aliases, exports, PATH changes, functions)
-- Cross-distro zsh installation (auto-detects pacman/apt/dnf/yum/zypper/apk/nix/xbps/emerge)
-- All prompts support non-interactive/CI flags and are logged to `~/.cache/zdots-setup.log`
-- `--dry-run` mode to preview changes without modifying anything
+## Features
 
-## 🛠 Installation
-Clone the repo and run the setup script:
+| | Zsh (~35ms) | Fish (~8ms) |
+|---|---|---|
+| Autosuggestions | `match_prev_cmd → history → completion` via plugin | Built-in |
+| Syntax highlighting | Turbo-loaded plugin | Built-in |
+| Completions | fzf-tab + zsh-completions | Built-in |
+| Plugins needed | 4 (managed by Zinit) | 0 |
+| Config style | Modules assembled into single `.zshrc` | `conf.d/` + `functions/` |
+
+**Shared:** Starship prompt, zoxide, lazy-loaded NVM, compiled `.zshrc` bytecode, `--dry-run` mode, non-interactive/CI support, backup merge flow.
+
+## Install
+
 ```bash
 git clone https://github.com/purian23/zdots.git ~/.zdots
 cd ~/.zdots
-./setup.sh
+./setup.sh          # configures both shells
+./setup.sh --dry-run  # preview only
 ```
-Then reload your shell:
-```bash
-source ~/.zshrc
-```
-Preview what the installer would do without making changes:
-```bash
-./setup.sh --dry-run
-```
-Notes:
-- If zsh is missing, the script autodetects your package manager and tries to install it (or honor `ZDOTS_PM`).
-- You'll be offered to switch your default shell to zsh and to install the included Starship config.
-- Logging: output is saved to `~/.cache/zdots-setup.log` (override path with `ZDOTS_LOGFILE`).
-- In non-interactive environments (CI, containers), `chsh` and the immediate shell-switch are automatically skipped.
 
-### Environment variables
+Both shells are installed if missing. Switch anytime with `zsh` or `fish`.
+
+## Distro support
+
+Auto-detects: pacman, apt, dnf, zypper, yum, apk, nix-env, xbps-install, emerge, Homebrew.
+
+Tested on Arch, Ubuntu, Fedora 43, Alpine, macOS.
+
+## Environment variables
+
 | Variable | Purpose |
 |----------|---------|
-| `ZDOTS_YES=1` | Answer "yes" to all prompts |
-| `ZDOTS_NO=1` | Answer "no" to all prompts |
-| `ZDOTS_NONINTERACTIVE=1` | Use prompt defaults; skip `chsh` and shell-switch |
-| `ZDOTS_PM=<name>` | Force a specific package manager (e.g. `apk`, `nix`, `xbps`) |
-| `ZDOTS_MERGE=all\|yes\|no` | Control backup merge behavior |
-| `ZDOTS_LOGFILE=<path>` | Override the setup log path |
+| `ZDOTS_YES=1` | Answer yes to all prompts |
+| `ZDOTS_NO=1` | Answer no to all prompts |
+| `ZDOTS_NONINTERACTIVE=1` | Use defaults, skip `chsh` |
+| `ZDOTS_PM=<name>` | Force a package manager |
+| `ZDOTS_MERGE=all\|yes\|no` | Control backup merge |
+| `ZDOTS_LOGFILE=<path>` | Override log path |
 
-## 🧩 VS Code Compatibility
-To ensure full `.zshrc` sourcing and NVM support in VS Code, add this to your `settings.json`:
+## Performance
+
+```bash
+time zsh -i -c exit    # ~0.035s
+time fish -c exit      # ~0.008s
+```
+
+Profile Zsh: add `zmodload zsh/zprof` to top of `.zshrc`, run `zprof`.
+
+## VS Code
 
 ```json
 "terminal.integrated.profiles.linux": {
-  "zsh": {
-    "path": "/bin/zsh",
-    "args": ["-l"]
-  }
+  "zsh": { "path": "/bin/zsh", "args": ["-l"] },
+  "fish": { "path": "/usr/bin/fish", "args": ["-l"] }
 },
 "terminal.integrated.defaultProfile.linux": "zsh"
 ```
-This launches Zsh as a login shell, ensuring all plugins, PATH logic, and NVM are properly initialized.
 
-## ♻️ Backup merge flow
-If a previous `~/.zshrc` is found, the installer asks once whether you want to merge content from it. If you opt in, you can merge per-category or choose "merge all." Categories:
-- aliases
-- exports
-- PATH assignments
-- functions
+## Recommended packages
 
-## 🧪 Performance
-Shell startup time benchmark:
-```bash
-time zsh -i -c exit
-# ~0.045s total
-# Sample (hardware may vary):
-# zsh -i -c exit  0.03s user 0.01s system 101% cpu 0.045 total
-```
-Test your setup by uncommenting the following: 
-```bash
-zmodload zsh/zprof
-zprof
-```
-Use `zmodload zsh/zprof` and `zprof` to profile plugin load times.
-
-## 📦 Recommended packages (not auto-installed)
-These tools are commonly used with Zdots but aren't installed by the setup script:
-```text
-bat, eza, fzf, p7zip, starship, unrar, unzip, zoxide
-```
-Install them with your distro's package manager. Examples:
-- Arch (pacman): `sudo pacman -S bat eza fzf p7zip starship unrar unzip zoxide`
-- Debian/Ubuntu (apt): `sudo apt-get install bat eza fzf p7zip-full starship unrar unzip zoxide`
-- Fedora (dnf): `sudo dnf install bat eza fzf p7zip p7zip-plugins starship unrar unzip zoxide`
-
-## 🧰 Distro support
-- Auto-detects: pacman, apt/apt-get, dnf, zypper, yum, apk, nix-env, xbps-install, emerge
-
-Tested on recent Arch, Ubuntu, Fedora 42+, Alpine; other distros welcome via PRs.
+Not auto-installed: `bat`, `eza`, `fzf`, `p7zip`, `starship`, `unrar`, `unzip`, `zoxide`.
 
 ## Uninstall
-To revert to a previous backup:
+
 ```bash
+# Zsh — restore backup
 mv ~/.zshrc ~/.zshrc.generated.bak
 mv ~/.zshrc.bak.YYYYMMDDHHMM ~/.zshrc
-```
-Remove the repo if desired:
-```bash
+
+# Fish — remove zdots configs
+rm ~/.config/fish/conf.d/{00-options,10-path,20-nvm,30-prompt,40-zoxide,99-extras}.fish
+rm ~/.config/fish/functions/{nvm,node,npm,npx}.fish
+
+# Remove repo
 rm -rf ~/.zdots
 ```
-## 🤝 Contributions
-Feel free to fork, tweak, or submit pull requests.  
-This setup is built for clarity, reproducibility, and performance — contributions that preserve those values are welcome.
+
+## Contributing
+
+PRs welcome. Priorities: clarity, speed, portability.
