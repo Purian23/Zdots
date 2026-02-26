@@ -16,6 +16,7 @@ bindkey '^R' history-incremental-search-backward
 bindkey '^S' history-incremental-search-forward
 bindkey '^[[1;5C' forward-word
 bindkey '^[[1;5D' backward-word
+bindkey '^[[1;3C' forward-word         # Alt-→  accept next suggested word
 bindkey '^[[3~' delete-char
 
 # ---- PATH ----
