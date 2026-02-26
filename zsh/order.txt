@@ -1,0 +1,9 @@
+# Zdots module load order
+# Lines starting with # are comments; blank lines are ignored.
+00-options.zsh
+10-completions.zsh
+20-plugins-light.zsh
+30-prompt.zsh
+40-plugins-heavy.zsh
+50-nvm.zsh
+99-extras.zsh
