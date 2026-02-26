@@ -5,11 +5,8 @@ ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
 source "$ZINIT_HOME/zinit.zsh"
 
 # ---- Plugins (turbo-loaded after prompt) ----
-# Order matters: zsh-completions adds to fpath, then compinit scans it
-zinit ice wait'0' lucid
-zinit light zsh-users/zsh-completions
 zinit ice wait'0' lucid atinit"autoload -Uz compinit && compinit -C; zicdreplay -q"
-zinit light Aloxaf/fzf-tab
+zinit light zsh-users/zsh-completions
 
 # ---- zoxide ----
 if command -v zoxide &>/dev/null; then
