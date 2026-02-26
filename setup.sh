@@ -119,17 +119,12 @@ maybe_sudo() {
 install_shell_if_missing() {
   local shell_name="$1"
 
-  if command -v "$shell_name" >/dev/null 2>&1; then
-    echo -e "${BLUE}${shell_name} is already installed.${RESET}"
-    return 0
-  fi
-
   if $DRY_RUN; then
     echo -e "${YELLOW}[DRY RUN] Would install $shell_name${RESET}"
     return 0
   fi
 
-  echo -e "${YELLOW}${shell_name} not found. Attempting to install...${RESET}"
+  echo -e "${YELLOW}Installing ${shell_name}...${RESET}"
   if [[ "$OS_TYPE" == "linux" ]] && ! check_sudo; then return 1; fi
 
   local pm="${ZDOTS_PM:-}"
@@ -189,13 +184,41 @@ install_shell_if_missing() {
   fi
 }
 
-# === Install both shells ===
-install_shell_if_missing zsh || true
-install_shell_if_missing fish || true
+# === Install shells (prompt before installing) ===
+has_zsh=false
+has_fish=false
+command -v zsh >/dev/null 2>&1 && has_zsh=true
+command -v fish >/dev/null 2>&1 && has_fish=true
+
+if ! $has_zsh; then
+  if [[ $(ask_yes_no "${YELLOW}Zsh is not installed. Install it? [Y/n]: ${RESET}" Y) == y ]]; then
+    install_shell_if_missing zsh && has_zsh=true
+  else
+    echo -e "${BLUE}Skipping Zsh.${RESET}"
+  fi
+else
+  echo -e "${BLUE}Zsh is already installed.${RESET}"
+fi
+
+if ! $has_fish; then
+  if [[ $(ask_yes_no "${YELLOW}Fish is not installed. Install it? [Y/n]: ${RESET}" Y) == y ]]; then
+    install_shell_if_missing fish && has_fish=true
+  else
+    echo -e "${BLUE}Skipping Fish.${RESET}"
+  fi
+else
+  echo -e "${BLUE}Fish is already installed.${RESET}"
+fi
+
+if ! $has_zsh && ! $has_fish; then
+  echo -e "${RED}Neither Zsh nor Fish is available. Nothing to configure.${RESET}"
+  exit 1
+fi
 
 # =====================================================================
 # ZSH SETUP
 # =====================================================================
+if $has_zsh; then
 echo ""
 echo -e "${BLUE}▶ Setting up Zsh${RESET}"
 
@@ -337,9 +360,12 @@ elif command -v zsh >/dev/null 2>&1; then
   fi
 fi
 
+fi # end has_zsh
+
 # =====================================================================
 # FISH SETUP
 # =====================================================================
+if $has_fish; then
 echo ""
 echo -e "${BLUE}▶ Setting up Fish${RESET}"
 
@@ -368,6 +394,8 @@ if [[ -d "$FISH_MODULE_DIR" ]]; then
 else
   echo -e "${YELLOW}  No fish/ directory found, skipping fish config${RESET}"
 fi
+
+fi # end has_fish
 
 # =====================================================================
 # SHARED: Starship configuration
@@ -419,21 +447,30 @@ if [[ "$OS_TYPE" == "linux" ]]; then
 else
   echo -e "${BLUE}   System:   $OS_TYPE${RESET}"
 fi
-if $DRY_RUN; then
-  echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules found${RESET}"
-  echo -e "${BLUE}   Fish:     ${fish_module_count} modules found${RESET}"
-else
-  compile_label=""
-  $compile_ok && compile_label=", compiled"
-  echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules${compile_label} → ~/.zshrc${RESET}"
-  echo -e "${BLUE}   Fish:     ${fish_module_count} modules → ~/.config/fish/${RESET}"
+if $has_zsh; then
+  if $DRY_RUN; then
+    echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules found${RESET}"
+  else
+    compile_label=""
+    $compile_ok && compile_label=", compiled"
+    echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules${compile_label} → ~/.zshrc${RESET}"
+  fi
+fi
+if $has_fish; then
+  if $DRY_RUN; then
+    echo -e "${BLUE}   Fish:     ${fish_module_count} modules found${RESET}"
+  else
+    echo -e "${BLUE}   Fish:     ${fish_module_count} modules → ~/.config/fish/${RESET}"
+  fi
 fi
 echo -e "${BLUE}   Starship: ${starship_status}${RESET}"
 [[ -n "$BACKUP_FILE" ]] && echo -e "${BLUE}   Backup:   $BACKUP_FILE${RESET}"
 echo ""
 echo -e "${YELLOW}💡 Tip: Install a Mono Nerd Font for best prompt rendering${RESET}"
 echo -e "${YELLOW}   https://www.nerdfonts.com${RESET}"
-echo -e "${BLUE}   Switch anytime: type ${GREEN}zsh${BLUE} or ${GREEN}fish${RESET}"
+if $has_zsh && $has_fish; then
+  echo -e "${BLUE}   Switch anytime: type ${GREEN}zsh${BLUE} or ${GREEN}fish${RESET}"
+fi
 echo ""
 
 # === Offer default shell switch ===
@@ -444,14 +481,14 @@ if [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
 elif $DRY_RUN; then
   echo -e "${YELLOW}[DRY RUN] Would offer to change default shell${RESET}"
 else
-  if [[ "$current_shell" != "zsh" ]] && command -v zsh >/dev/null 2>&1; then
+  if $has_zsh && [[ "$current_shell" != "zsh" ]]; then
     if [[ $(ask_yes_no "${YELLOW}Set Zsh as default shell? [y/N]: ${RESET}" N) == y ]]; then
       chsh -s "$(command -v zsh)"
       chosen_default="zsh"
       echo -e "${GREEN}Default shell changed to Zsh.${RESET}"
     fi
   fi
-  if [[ "$chosen_default" != "fish" && "$current_shell" != "fish" ]] && command -v fish >/dev/null 2>&1; then
+  if $has_fish && [[ "$chosen_default" != "fish" && "$current_shell" != "fish" ]]; then
     if [[ $(ask_yes_no "${YELLOW}Set Fish as default shell? [y/N]: ${RESET}" N) == y ]]; then
       chsh -s "$(command -v fish)"
       chosen_default="fish"
@@ -467,18 +504,18 @@ if [ -n "${BASH_VERSION-}" ]; then
   elif [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
     echo -e "${BLUE}Skipping immediate shell switch (non-interactive)${RESET}"
   elif [[ "$chosen_default" == "fish" ]]; then
-    if [[ $(ask_yes_no "${YELLOW}Launch Fish now? [Y/n]: ${RESET}" Y) == y ]]; then
+    if $has_fish && [[ $(ask_yes_no "${YELLOW}Launch Fish now? [Y/n]: ${RESET}" Y) == y ]]; then
       echo -e "${BLUE}Launching Fish...${RESET}"
       exec fish -l
-    elif [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [y/N]: ${RESET}" N) == y ]]; then
+    elif $has_zsh && [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [y/N]: ${RESET}" N) == y ]]; then
       echo -e "${BLUE}Launching Zsh...${RESET}"
       exec zsh -i -c "source ~/.zshrc; exec zsh -l"
     fi
   else
-    if [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [Y/n]: ${RESET}" Y) == y ]]; then
+    if $has_zsh && [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [Y/n]: ${RESET}" Y) == y ]]; then
       echo -e "${BLUE}Launching Zsh...${RESET}"
       exec zsh -i -c "source ~/.zshrc; exec zsh -l"
-    elif [[ $(ask_yes_no "${YELLOW}Launch Fish now? [y/N]: ${RESET}" N) == y ]]; then
+    elif $has_fish && [[ $(ask_yes_no "${YELLOW}Launch Fish now? [y/N]: ${RESET}" N) == y ]]; then
       echo -e "${BLUE}Launching Fish...${RESET}"
       exec fish -l
     fi
