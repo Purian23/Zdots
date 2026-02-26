@@ -1,12 +1,12 @@
 # ---- Shell Options ----
 unsetopt BEEP
-setopt appendhistory sharehistory hist_ignore_space hist_ignore_all_dups \
-       extended_history hist_expire_dups_first hist_find_no_dups
+setopt appendhistory sharehistory hist_ignore_space hist_save_no_dups \
+       extended_history hist_find_no_dups
 
 # ---- History ----
 HISTFILE=~/.zsh_history
-HISTSIZE=9023
-SAVEHIST=9023
+HISTSIZE=50000
+SAVEHIST=50000
 
 # ---- Key Bindings ----
 bindkey -e

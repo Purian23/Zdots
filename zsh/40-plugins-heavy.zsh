@@ -1,7 +1,8 @@
 # ---- Autosuggestion config (set before plugin loads) ----
-# Try history first; fall back to completions (flags, subcommands, paths).
-# This mirrors fish's combined history + completion + path suggestion sources.
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+# 1. match_prev_cmd — suggest what usually follows the command you just ran
+# 2. history        — fall back to most recent prefix match
+# 3. completion     — fall back to zsh completions (flags, subcommands, paths)
+ZSH_AUTOSUGGEST_STRATEGY=(match_prev_cmd history completion)
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#6c6c6c"
 ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
 
