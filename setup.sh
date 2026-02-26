@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# === Flags ===
+DRY_RUN=false
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=true ;;
+  esac
+done
+
 # === Colors ===
+GREEN="\033[1;32m"
 BLUE="\033[1;36m"
 YELLOW="\033[1;33m"
 RED="\033[0;31m"
 RESET="\033[0m"
 
-echo -e "${BLUE}=== Zdots Setup (Pure Modular, Smart Installer) ===${RESET}"
+if $DRY_RUN; then
+  echo -e "${YELLOW}=== Zdots Setup (DRY RUN — no changes will be made) ===${RESET}"
+else
+  echo -e "${BLUE}=== Zdots Setup (Pure Modular, Smart Installer) ===${RESET}"
+fi
 
 # === Logging (tee all output) ===
 LOGFILE="${ZDOTS_LOGFILE:-$HOME/.cache/zdots-setup.log}"
 mkdir -p "$(dirname "$LOGFILE")"
-# Append a header with timestamp
 {
   echo "---"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') Starting Zdots setup"
+  if $DRY_RUN; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Starting Zdots setup (dry run)"
+  else
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Starting Zdots setup"
+  fi
 } >> "$LOGFILE"
 exec > >(tee -a "$LOGFILE") 2>&1
 
@@ -26,6 +42,11 @@ FINAL_ZSHRC="$HOME/.zshrc"
 BACKUP_FILE=""
 STARSHIP_CONFIG="$HOME/.config/starship.toml"
 STARSHIP_SOURCE="$SCRIPT_DIR/starship.toml"
+
+# === Status tracking ===
+module_count=0
+compile_ok=false
+starship_status="not available"
 
 # === Prompt helper ===
 # ask_yes_no "prompt" default(Y|N) -> echoes 'y' or 'n'
@@ -60,6 +81,7 @@ detect_os() {
 # === Distribution Detection ===
 detect_distro() {
   if [[ -f /etc/os-release ]]; then
+    # shellcheck source=/dev/null
     . /etc/os-release
     echo "${ID:-unknown}"
   elif [[ -f /etc/fedora-release ]]; then
@@ -82,24 +104,34 @@ if [[ "$OS_TYPE" == "linux" ]]; then
   if [[ "$DISTRO" == "fedora" && -f /etc/fedora-release ]]; then
     FEDORA_VERSION=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
     echo -e "${BLUE}Fedora version: $FEDORA_VERSION${RESET}"
-    if [[ "$FEDORA_VERSION" -ge 42 ]]; then
-      echo -e "${BLUE}Modern Fedora detected - dnf uses DNF5 backend${RESET}"
-    fi
   fi
 fi
 
-# === Check for sudo availability (skip on macOS with Homebrew) ===
+# === Check for sudo/root availability (skip on macOS with Homebrew) ===
 check_sudo() {
   if [[ "$OS_TYPE" == "macos" ]]; then
-    return 0  # macOS typically doesn't need sudo for Homebrew
+    return 0
   fi
-  
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return 0
+  fi
+
   if ! command -v sudo >/dev/null 2>&1; then
     echo -e "${RED}sudo is required for package installation but not found.${RESET}"
     echo -e "${YELLOW}Please install sudo or run this script as root.${RESET}"
     return 1
   fi
   return 0
+}
+
+# Run a command with sudo unless already root
+maybe_sudo() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
 }
 
 # === Package manager detection ===
@@ -109,8 +141,13 @@ install_zsh_if_missing() {
     return 0
   fi
 
+  if $DRY_RUN; then
+    echo -e "${YELLOW}[DRY RUN] Would attempt to install zsh${RESET}"
+    return 0
+  fi
+
   echo -e "${YELLOW}Zsh not found. Attempting to install...${RESET}"
-  
+
   # Check sudo availability for Linux systems
   if [[ "$OS_TYPE" == "linux" ]] && ! check_sudo; then
     return 1
@@ -121,12 +158,15 @@ install_zsh_if_missing() {
   if [[ -n "$pm" ]]; then
     case "$pm" in
       brew|homebrew) brew install zsh && return 0 ;;
-      pacman) sudo pacman -Sy --needed --noconfirm zsh && return 0 ;;
-      apt|apt-get) sudo apt-get update && sudo apt-get install -y zsh && return 0 ;;
-      dnf) sudo dnf install -y zsh && return 0 ;;
-      yum) sudo yum install -y zsh && return 0 ;;
-      zypper) sudo zypper -n install zsh && return 0 ;;
-      apk) sudo apk add zsh && return 0 ;;
+      pacman) maybe_sudo pacman -S --needed --noconfirm zsh && return 0 ;;
+      apt|apt-get) maybe_sudo apt-get update && maybe_sudo apt-get install -y zsh && return 0 ;;
+      dnf) maybe_sudo dnf install -y zsh && return 0 ;;
+      yum) maybe_sudo yum install -y zsh && return 0 ;;
+      zypper) maybe_sudo zypper -n install zsh && return 0 ;;
+      apk) maybe_sudo apk add zsh && return 0 ;;
+      nix|nix-env) nix-env -iA nixpkgs.zsh && return 0 ;;
+      xbps) maybe_sudo xbps-install -y zsh && return 0 ;;
+      emerge|portage) maybe_sudo emerge --ask=n app-shells/zsh && return 0 ;;
     esac
     echo -e "${RED}Unknown package manager in ZDOTS_PM='$pm'. Falling back to auto-detect.${RESET}"
   fi
@@ -149,25 +189,34 @@ install_zsh_if_missing() {
     # Try package managers in order of preference/commonality
     if command -v pacman >/dev/null 2>&1; then
       echo -e "${BLUE}Detected Pacman (Arch-based)${RESET}"
-      sudo pacman -Sy --needed --noconfirm zsh || true
+      maybe_sudo pacman -S --needed --noconfirm zsh || true
     elif command -v apt-get >/dev/null 2>&1; then
       echo -e "${BLUE}Detected APT (Debian-based)${RESET}"
-      sudo apt-get update && sudo apt-get install -y zsh || true
+      { maybe_sudo apt-get update && maybe_sudo apt-get install -y zsh; } || true
     elif command -v dnf >/dev/null 2>&1; then
       echo -e "${BLUE}Detected DNF (Fedora/RHEL)${RESET}"
-      sudo dnf install -y zsh || true
+      maybe_sudo dnf install -y zsh || true
     elif command -v zypper >/dev/null 2>&1; then
       echo -e "${BLUE}Detected Zypper (openSUSE)${RESET}"
-      sudo zypper -n install zsh || true
+      maybe_sudo zypper -n install zsh || true
     elif command -v yum >/dev/null 2>&1; then
       echo -e "${BLUE}Detected YUM (CentOS/RHEL)${RESET}"
-      sudo yum install -y zsh || true
+      maybe_sudo yum install -y zsh || true
     elif command -v apk >/dev/null 2>&1; then
       echo -e "${BLUE}Detected APK (Alpine)${RESET}"
-      sudo apk add zsh || true
+      maybe_sudo apk add zsh || true
+    elif command -v nix-env >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected Nix${RESET}"
+      nix-env -iA nixpkgs.zsh || true
+    elif command -v xbps-install >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected XBPS (Void Linux)${RESET}"
+      maybe_sudo xbps-install -y zsh || true
+    elif command -v emerge >/dev/null 2>&1; then
+      echo -e "${BLUE}Detected Portage (Gentoo)${RESET}"
+      maybe_sudo emerge --ask=n app-shells/zsh || true
     else
       echo -e "${RED}Could not detect a supported package manager.${RESET}"
-      echo -e "${YELLOW}Supported: pacman, apt-get, dnf, zypper, yum, apk${RESET}"
+      echo -e "${YELLOW}Supported: pacman, apt-get, dnf, zypper, yum, apk, nix-env, xbps-install, emerge${RESET}"
       echo -e "${YELLOW}Please install zsh manually and re-run this script.${RESET}"
       return 1
     fi
@@ -190,9 +239,13 @@ install_zsh_if_missing || true
 # === Ensure Zinit is installed ===
 ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
 if [[ ! -d "$ZINIT_HOME" ]]; then
-  echo -e "${YELLOW}Installing Zinit...${RESET}"
-  mkdir -p "$(dirname "$ZINIT_HOME")"
-  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+  if $DRY_RUN; then
+    echo -e "${YELLOW}[DRY RUN] Would clone Zinit to $ZINIT_HOME${RESET}"
+  else
+    echo -e "${YELLOW}Installing Zinit...${RESET}"
+    mkdir -p "$(dirname "$ZINIT_HOME")"
+    git clone --depth=1 https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+  fi
 else
   echo -e "${BLUE}Zinit already installed.${RESET}"
 fi
@@ -201,15 +254,18 @@ fi
 if [[ -f "$FINAL_ZSHRC" && ! -L "$FINAL_ZSHRC" ]]; then
   ts="$(date +%Y%m%d%H%M)"
   BACKUP_FILE="$HOME/.zshrc.bak.$ts"
-  echo -e "${YELLOW}Backing up existing .zshrc to $BACKUP_FILE${RESET}"
-  mv "$FINAL_ZSHRC" "$BACKUP_FILE"
+  if $DRY_RUN; then
+    echo -e "${YELLOW}[DRY RUN] Would back up $FINAL_ZSHRC to $BACKUP_FILE${RESET}"
+  else
+    echo -e "${YELLOW}Backing up existing .zshrc to $BACKUP_FILE${RESET}"
+    mv "$FINAL_ZSHRC" "$BACKUP_FILE"
+  fi
 fi
 
 # === Assemble new .zshrc ===
 echo -e "${BLUE}▶ Assembling modules from: $MODULE_DIR${RESET}"
-: > "$FINAL_ZSHRC"
 
-# Use order.txt if present, else lexicographic order
+# Use order.txt if present, else lexicographic glob order
 declare -a modules=()
 if [[ -f "$MODULE_DIR/order.txt" ]]; then
   echo -e "${BLUE}Using order.txt manifest${RESET}"
@@ -219,33 +275,42 @@ if [[ -f "$MODULE_DIR/order.txt" ]]; then
   done < "$MODULE_DIR/order.txt"
 else
   echo -e "${BLUE}Using lexicographic filename order${RESET}"
-  while IFS= read -r line; do
-    modules+=("$line")
-  done < <(find "$MODULE_DIR" -maxdepth 1 -type f -name '*.zsh' | sort)
+  for f in "$MODULE_DIR"/*.zsh; do
+    [[ -f "$f" ]] && modules+=("$f")
+  done
 fi
 
-missing=0
-for f in "${modules[@]}"; do
-  if [[ -f "$f" ]]; then
-    echo -e "${BLUE}  + $(basename "$f")${RESET}"
-    cat "$f" >> "$FINAL_ZSHRC"
-    echo "" >> "$FINAL_ZSHRC"
-  else
-    echo -e "${RED}  - Missing: $(basename "$f")${RESET}"
-    missing=1
-  fi
-done
-
-if (( missing )); then
-  echo -e "${YELLOW}Some listed modules were missing. Review the output above.${RESET}"
-fi
-
-# === Compile once at build time ===
-echo -e "${BLUE}▶ Compiling .zshrc for faster startup...${RESET}"
-if command -v zsh >/dev/null 2>&1; then
-  zsh -fc 'zcompile ~/.zshrc' || echo -e "${YELLOW}zcompile failed; continuing without bytecode cache.${RESET}"
+if $DRY_RUN; then
+  for f in "${modules[@]}"; do
+    if [[ -f "$f" ]]; then
+      echo -e "${BLUE}  [DRY RUN] Would include $(basename "$f")${RESET}"
+      module_count=$((module_count + 1))
+    else
+      echo -e "${RED}  [DRY RUN] Missing: $(basename "$f")${RESET}"
+    fi
+  done
+  echo -e "${BLUE}  ✔ ${module_count} modules would be assembled${RESET}"
 else
-  echo -e "${RED}Zsh not found during compile step; skipping zcompile.${RESET}"
+  : > "$FINAL_ZSHRC"
+
+  missing=0
+  for f in "${modules[@]}"; do
+    if [[ -f "$f" ]]; then
+      echo -e "${BLUE}  + $(basename "$f")${RESET}"
+      cat "$f" >> "$FINAL_ZSHRC"
+      echo "" >> "$FINAL_ZSHRC"
+      module_count=$((module_count + 1))
+    else
+      echo -e "${RED}  ✗ Missing: $(basename "$f")${RESET}"
+      missing=1
+    fi
+  done
+
+  if (( missing )); then
+    echo -e "${YELLOW}  ⚠ Some listed modules were missing. Review the output above.${RESET}"
+  else
+    echo -e "${GREEN}  ✔ ${module_count} modules assembled${RESET}"
+  fi
 fi
 
 # === Merge from backup ===
@@ -270,7 +335,7 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
     fi
   fi
 
-  if [[ "$merge_choice" == "y" ]]; then
+  if [[ "$merge_choice" == "y" ]] && ! $DRY_RUN; then
     imported_any=false
     maybe_add_footer() {
       if [ "$imported_any" = false ]; then
@@ -342,61 +407,114 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
           ;;
       esac
     done
+  elif $DRY_RUN && [[ "$merge_choice" == "y" ]]; then
+    echo -e "${YELLOW}[DRY RUN] Would merge selected categories from backup${RESET}"
   else
-    echo -e "${BLUE}Skipping all backup merge prompts per your choice.${RESET}"
+    echo -e "${BLUE}No content merged from backup.${RESET}"
   fi
+fi
+
+# === Compile .zshrc (after merge so bytecode matches final content) ===
+echo -e "${BLUE}▶ Compiling .zshrc for faster startup...${RESET}"
+if $DRY_RUN; then
+  echo -e "${YELLOW}[DRY RUN] Would compile ~/.zshrc${RESET}"
+elif command -v zsh >/dev/null 2>&1; then
+  if zsh -fc 'zcompile ~/.zshrc' 2>/dev/null; then
+    compile_ok=true
+    echo -e "${GREEN}  ✔ Compiled successfully${RESET}"
+  else
+    echo -e "${YELLOW}  ⚠ zcompile failed — continuing without bytecode cache${RESET}"
+  fi
+else
+  echo -e "${RED}  ✗ Zsh not found — skipping zcompile${RESET}"
 fi
 
 # === Install Starship configuration ===
 if [[ -f "$STARSHIP_SOURCE" ]]; then
   echo -e "${BLUE}▶ Setting up Starship configuration${RESET}"
   mkdir -p "$(dirname "$STARSHIP_CONFIG")"
-  
+
   if [[ -f "$STARSHIP_CONFIG" ]]; then
     echo -e "${YELLOW}Existing starship.toml found at $STARSHIP_CONFIG${RESET}"
-  if [[ $(ask_yes_no "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}" N) == y ]]; then
-      ts="$(date +%Y%m%d%H%M)"
-      STARSHIP_BACKUP="$STARSHIP_CONFIG.bak.$ts"
-      echo -e "${YELLOW}Backing up existing config to $STARSHIP_BACKUP${RESET}"
-      mv "$STARSHIP_CONFIG" "$STARSHIP_BACKUP"
-      cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
-      echo -e "${BLUE}Starship config installed${RESET}"
+    if [[ $(ask_yes_no "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}" N) == y ]]; then
+      if $DRY_RUN; then
+        echo -e "${YELLOW}[DRY RUN] Would replace $STARSHIP_CONFIG${RESET}"
+      else
+        ts="$(date +%Y%m%d%H%M)"
+        STARSHIP_BACKUP="$STARSHIP_CONFIG.bak.$ts"
+        echo -e "${YELLOW}Backing up existing config to $STARSHIP_BACKUP${RESET}"
+        mv "$STARSHIP_CONFIG" "$STARSHIP_BACKUP"
+        cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
+        starship_status="installed (replaced)"
+        echo -e "${GREEN}  ✔ Starship config installed${RESET}"
+      fi
     else
-      echo -e "${BLUE}Keeping existing starship config${RESET}"
+      starship_status="kept existing"
+      echo -e "${BLUE}  Keeping existing starship config${RESET}"
     fi
   else
-  if [[ $(ask_yes_no "${YELLOW}Install Zdots default starship config to $STARSHIP_CONFIG? [y/N]: ${RESET}" N) == y ]]; then
-      cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
-      echo -e "${BLUE}Starship config installed to $STARSHIP_CONFIG${RESET}"
+    if [[ $(ask_yes_no "${YELLOW}Install Zdots default starship config to $STARSHIP_CONFIG? [y/N]: ${RESET}" N) == y ]]; then
+      if $DRY_RUN; then
+        echo -e "${YELLOW}[DRY RUN] Would install starship config to $STARSHIP_CONFIG${RESET}"
+      else
+        cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
+        starship_status="installed"
+        echo -e "${GREEN}  ✔ Starship config installed to $STARSHIP_CONFIG${RESET}"
+      fi
     else
-      echo -e "${BLUE}Skipping starship config installation; no config will be created${RESET}"
+      starship_status="skipped"
+      echo -e "${BLUE}  Starship config skipped (no changes made)${RESET}"
     fi
   fi
 else
   echo -e "${YELLOW}Starship.toml not found in Zdots directory, skipping${RESET}"
 fi
 
+# === Summary (printed before shell-switch so it's always visible) ===
+echo ""
+echo -e "${GREEN}✅ Zdots setup complete!${RESET}"
+if [[ "$OS_TYPE" == "linux" ]]; then
+  echo -e "${BLUE}   System:   $OS_TYPE ($DISTRO)${RESET}"
+else
+  echo -e "${BLUE}   System:   $OS_TYPE${RESET}"
+fi
+if $DRY_RUN; then
+  echo -e "${BLUE}   Modules:  ${module_count} found${RESET}"
+else
+  compile_label=""
+  $compile_ok && compile_label=", compiled"
+  echo -e "${BLUE}   Modules:  ${module_count} loaded${compile_label}${RESET}"
+  echo -e "${BLUE}   Config:   ~/.zshrc${RESET}"
+fi
+echo -e "${BLUE}   Starship: ${starship_status}${RESET}"
+if [[ -n "$BACKUP_FILE" ]]; then
+  echo -e "${BLUE}   Backup:   $BACKUP_FILE${RESET}"
+fi
+echo ""
+echo -e "${YELLOW}💡 Tip: Install a Mono Nerd Font for best prompt rendering${RESET}"
+echo -e "${YELLOW}   https://www.nerdfonts.com${RESET}"
+echo ""
+
 # === Offer default shell switch ===
 if [ "$SHELL" != "$(command -v zsh)" ]; then
-  if [[ $(ask_yes_no "${YELLOW}Change default shell to Zsh? [Y/n]: ${RESET}" Y) == y ]]; then
+  if [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
+    echo -e "${BLUE}Skipping chsh (non-interactive environment detected)${RESET}"
+  elif $DRY_RUN; then
+    echo -e "${YELLOW}[DRY RUN] Would offer to change default shell to zsh${RESET}"
+  elif [[ $(ask_yes_no "${YELLOW}Change default shell to Zsh? [Y/n]: ${RESET}" Y) == y ]]; then
     chsh -s "$(command -v zsh)"
-    echo -e "${YELLOW}Default shell changed. Takes effect on next login.${RESET}"
+    echo -e "${GREEN}Default shell changed to Zsh. Takes effect on next login.${RESET}"
   fi
 fi
 
 # === Optional immediate switch ===
 if [ -n "${BASH_VERSION-}" ]; then
-  if [[ $(ask_yes_no "${YELLOW}Switch to Zsh now and load your new config? [Y/n]: ${RESET}" Y) == y ]]; then
-    echo -e "${BLUE}Switching to Zsh...${RESET}"
+  if $DRY_RUN; then
+    echo -e "${YELLOW}[DRY RUN] Would offer to switch to Zsh now${RESET}"
+  elif [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
+    echo -e "${BLUE}Skipping immediate shell switch (non-interactive environment)${RESET}"
+  elif [[ $(ask_yes_no "${YELLOW}Switch to Zsh now and load your new config? [Y/n]: ${RESET}" Y) == y ]]; then
+    echo -e "${BLUE}Launching Zsh...${RESET}"
     exec zsh -i -c "source ~/.zshrc; exec zsh -l"
   fi
 fi
-
-echo -e "${BLUE}✅ Zdots setup complete.${RESET}"
-echo -e "${BLUE}System: $OS_TYPE${RESET}"
-if [[ "$OS_TYPE" == "linux" ]]; then
-  echo -e "${BLUE}Distribution: $DISTRO${RESET}"
-fi
-echo -e "${YELLOW}💡 Install and configure your terminal with a Mono Nerd Font${RESET}"
-echo -e "${YELLOW}   Recommended: FiraCode Nerd Font or similar from https://www.nerdfonts.com${RESET}"
-echo -e "${YELLOW}   After installation, make sure to set the font in your terminal preferences or configuration.${RESET}"
