@@ -438,6 +438,7 @@ echo ""
 
 # === Offer default shell switch ===
 current_shell="$(basename "$SHELL")"
+chosen_default="$current_shell"
 if [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
   echo -e "${BLUE}Skipping chsh (non-interactive environment)${RESET}"
 elif $DRY_RUN; then
@@ -446,12 +447,14 @@ else
   if [[ "$current_shell" != "zsh" ]] && command -v zsh >/dev/null 2>&1; then
     if [[ $(ask_yes_no "${YELLOW}Set Zsh as default shell? [y/N]: ${RESET}" N) == y ]]; then
       chsh -s "$(command -v zsh)"
+      chosen_default="zsh"
       echo -e "${GREEN}Default shell changed to Zsh.${RESET}"
     fi
   fi
-  if [[ "$current_shell" != "fish" ]] && command -v fish >/dev/null 2>&1; then
+  if [[ "$chosen_default" != "fish" && "$current_shell" != "fish" ]] && command -v fish >/dev/null 2>&1; then
     if [[ $(ask_yes_no "${YELLOW}Set Fish as default shell? [y/N]: ${RESET}" N) == y ]]; then
       chsh -s "$(command -v fish)"
+      chosen_default="fish"
       echo -e "${GREEN}Default shell changed to Fish.${RESET}"
     fi
   fi
@@ -463,11 +466,21 @@ if [ -n "${BASH_VERSION-}" ]; then
     echo -e "${YELLOW}[DRY RUN] Would offer to launch zsh or fish${RESET}"
   elif [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
     echo -e "${BLUE}Skipping immediate shell switch (non-interactive)${RESET}"
-  elif [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [Y/n]: ${RESET}" Y) == y ]]; then
-    echo -e "${BLUE}Launching Zsh...${RESET}"
-    exec zsh -i -c "source ~/.zshrc; exec zsh -l"
-  elif [[ $(ask_yes_no "${YELLOW}Launch Fish now? [y/N]: ${RESET}" N) == y ]]; then
-    echo -e "${BLUE}Launching Fish...${RESET}"
-    exec fish -l
+  elif [[ "$chosen_default" == "fish" ]]; then
+    if [[ $(ask_yes_no "${YELLOW}Launch Fish now? [Y/n]: ${RESET}" Y) == y ]]; then
+      echo -e "${BLUE}Launching Fish...${RESET}"
+      exec fish -l
+    elif [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [y/N]: ${RESET}" N) == y ]]; then
+      echo -e "${BLUE}Launching Zsh...${RESET}"
+      exec zsh -i -c "source ~/.zshrc; exec zsh -l"
+    fi
+  else
+    if [[ $(ask_yes_no "${YELLOW}Launch Zsh now? [Y/n]: ${RESET}" Y) == y ]]; then
+      echo -e "${BLUE}Launching Zsh...${RESET}"
+      exec zsh -i -c "source ~/.zshrc; exec zsh -l"
+    elif [[ $(ask_yes_no "${YELLOW}Launch Fish now? [y/N]: ${RESET}" N) == y ]]; then
+      echo -e "${BLUE}Launching Fish...${RESET}"
+      exec fish -l
+    fi
   fi
 fi
