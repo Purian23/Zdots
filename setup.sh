@@ -10,6 +10,7 @@ for arg in "$@"; do
 done
 
 # === Colors ===
+GREEN="\033[1;32m"
 BLUE="\033[1;36m"
 YELLOW="\033[1;33m"
 RED="\033[0;31m"
@@ -41,6 +42,11 @@ FINAL_ZSHRC="$HOME/.zshrc"
 BACKUP_FILE=""
 STARSHIP_CONFIG="$HOME/.config/starship.toml"
 STARSHIP_SOURCE="$SCRIPT_DIR/starship.toml"
+
+# === Status tracking ===
+module_count=0
+compile_ok=false
+starship_status="not available"
 
 # === Prompt helper ===
 # ask_yes_no "prompt" default(Y|N) -> echoes 'y' or 'n'
@@ -278,10 +284,12 @@ if $DRY_RUN; then
   for f in "${modules[@]}"; do
     if [[ -f "$f" ]]; then
       echo -e "${BLUE}  [DRY RUN] Would include $(basename "$f")${RESET}"
+      module_count=$((module_count + 1))
     else
       echo -e "${RED}  [DRY RUN] Missing: $(basename "$f")${RESET}"
     fi
   done
+  echo -e "${BLUE}  ✔ ${module_count} modules would be assembled${RESET}"
 else
   : > "$FINAL_ZSHRC"
 
@@ -291,14 +299,17 @@ else
       echo -e "${BLUE}  + $(basename "$f")${RESET}"
       cat "$f" >> "$FINAL_ZSHRC"
       echo "" >> "$FINAL_ZSHRC"
+      module_count=$((module_count + 1))
     else
-      echo -e "${RED}  - Missing: $(basename "$f")${RESET}"
+      echo -e "${RED}  ✗ Missing: $(basename "$f")${RESET}"
       missing=1
     fi
   done
 
   if (( missing )); then
-    echo -e "${YELLOW}Some listed modules were missing. Review the output above.${RESET}"
+    echo -e "${YELLOW}  ⚠ Some listed modules were missing. Review the output above.${RESET}"
+  else
+    echo -e "${GREEN}  ✔ ${module_count} modules assembled${RESET}"
   fi
 fi
 
@@ -399,7 +410,7 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
   elif $DRY_RUN && [[ "$merge_choice" == "y" ]]; then
     echo -e "${YELLOW}[DRY RUN] Would merge selected categories from backup${RESET}"
   else
-    echo -e "${BLUE}Skipping all backup merge prompts per your choice.${RESET}"
+    echo -e "${BLUE}No content merged from backup.${RESET}"
   fi
 fi
 
@@ -408,9 +419,14 @@ echo -e "${BLUE}▶ Compiling .zshrc for faster startup...${RESET}"
 if $DRY_RUN; then
   echo -e "${YELLOW}[DRY RUN] Would compile ~/.zshrc${RESET}"
 elif command -v zsh >/dev/null 2>&1; then
-  zsh -fc 'zcompile ~/.zshrc' || echo -e "${YELLOW}zcompile failed; continuing without bytecode cache.${RESET}"
+  if zsh -fc 'zcompile ~/.zshrc' 2>/dev/null; then
+    compile_ok=true
+    echo -e "${GREEN}  ✔ Compiled successfully${RESET}"
+  else
+    echo -e "${YELLOW}  ⚠ zcompile failed — continuing without bytecode cache${RESET}"
+  fi
 else
-  echo -e "${RED}Zsh not found during compile step; skipping zcompile.${RESET}"
+  echo -e "${RED}  ✗ Zsh not found — skipping zcompile${RESET}"
 fi
 
 # === Install Starship configuration ===
@@ -429,10 +445,12 @@ if [[ -f "$STARSHIP_SOURCE" ]]; then
         echo -e "${YELLOW}Backing up existing config to $STARSHIP_BACKUP${RESET}"
         mv "$STARSHIP_CONFIG" "$STARSHIP_BACKUP"
         cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
-        echo -e "${BLUE}Starship config installed${RESET}"
+        starship_status="installed (replaced)"
+        echo -e "${GREEN}  ✔ Starship config installed${RESET}"
       fi
     else
-      echo -e "${BLUE}Keeping existing starship config${RESET}"
+      starship_status="kept existing"
+      echo -e "${BLUE}  Keeping existing starship config${RESET}"
     fi
   else
     if [[ $(ask_yes_no "${YELLOW}Install Zdots default starship config to $STARSHIP_CONFIG? [y/N]: ${RESET}" N) == y ]]; then
@@ -440,15 +458,42 @@ if [[ -f "$STARSHIP_SOURCE" ]]; then
         echo -e "${YELLOW}[DRY RUN] Would install starship config to $STARSHIP_CONFIG${RESET}"
       else
         cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
-        echo -e "${BLUE}Starship config installed to $STARSHIP_CONFIG${RESET}"
+        starship_status="installed"
+        echo -e "${GREEN}  ✔ Starship config installed to $STARSHIP_CONFIG${RESET}"
       fi
     else
-      echo -e "${BLUE}Skipping starship config installation; no config will be created${RESET}"
+      starship_status="skipped"
+      echo -e "${BLUE}  Starship config skipped (no changes made)${RESET}"
     fi
   fi
 else
   echo -e "${YELLOW}Starship.toml not found in Zdots directory, skipping${RESET}"
 fi
+
+# === Summary (printed before shell-switch so it's always visible) ===
+echo ""
+echo -e "${GREEN}✅ Zdots setup complete!${RESET}"
+if [[ "$OS_TYPE" == "linux" ]]; then
+  echo -e "${BLUE}   System:   $OS_TYPE ($DISTRO)${RESET}"
+else
+  echo -e "${BLUE}   System:   $OS_TYPE${RESET}"
+fi
+if $DRY_RUN; then
+  echo -e "${BLUE}   Modules:  ${module_count} found${RESET}"
+else
+  compile_label=""
+  $compile_ok && compile_label=", compiled"
+  echo -e "${BLUE}   Modules:  ${module_count} loaded${compile_label}${RESET}"
+  echo -e "${BLUE}   Config:   ~/.zshrc${RESET}"
+fi
+echo -e "${BLUE}   Starship: ${starship_status}${RESET}"
+if [[ -n "$BACKUP_FILE" ]]; then
+  echo -e "${BLUE}   Backup:   $BACKUP_FILE${RESET}"
+fi
+echo ""
+echo -e "${YELLOW}💡 Tip: Install a Mono Nerd Font for best prompt rendering${RESET}"
+echo -e "${YELLOW}   https://www.nerdfonts.com${RESET}"
+echo ""
 
 # === Offer default shell switch ===
 if [ "$SHELL" != "$(command -v zsh)" ]; then
@@ -458,7 +503,7 @@ if [ "$SHELL" != "$(command -v zsh)" ]; then
     echo -e "${YELLOW}[DRY RUN] Would offer to change default shell to zsh${RESET}"
   elif [[ $(ask_yes_no "${YELLOW}Change default shell to Zsh? [Y/n]: ${RESET}" Y) == y ]]; then
     chsh -s "$(command -v zsh)"
-    echo -e "${YELLOW}Default shell changed. Takes effect on next login.${RESET}"
+    echo -e "${GREEN}Default shell changed to Zsh. Takes effect on next login.${RESET}"
   fi
 fi
 
@@ -469,16 +514,7 @@ if [ -n "${BASH_VERSION-}" ]; then
   elif [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
     echo -e "${BLUE}Skipping immediate shell switch (non-interactive environment)${RESET}"
   elif [[ $(ask_yes_no "${YELLOW}Switch to Zsh now and load your new config? [Y/n]: ${RESET}" Y) == y ]]; then
-    echo -e "${BLUE}Switching to Zsh...${RESET}"
+    echo -e "${BLUE}Launching Zsh...${RESET}"
     exec zsh -i -c "source ~/.zshrc; exec zsh -l"
   fi
 fi
-
-echo -e "${BLUE}✅ Zdots setup complete.${RESET}"
-echo -e "${BLUE}System: $OS_TYPE${RESET}"
-if [[ "$OS_TYPE" == "linux" ]]; then
-  echo -e "${BLUE}Distribution: $DISTRO${RESET}"
-fi
-echo -e "${YELLOW}💡 Install and configure your terminal with a Mono Nerd Font${RESET}"
-echo -e "${YELLOW}   Recommended: FiraCode Nerd Font or similar from https://www.nerdfonts.com${RESET}"
-echo -e "${YELLOW}   After installation, make sure to set the font in your terminal preferences or configuration.${RESET}"
