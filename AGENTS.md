@@ -8,13 +8,13 @@ Zdots is a modular Zsh dotfiles/shell-configuration project. There is no build s
 
 ### Running setup.sh non-interactively
 
-Use environment variables to avoid interactive prompts:
-
 ```bash
-ZDOTS_YES=1 ZDOTS_MERGE=all bash setup.sh
+ZDOTS_NONINTERACTIVE=1 bash setup.sh
 ```
 
-**Gotcha:** `ZDOTS_YES=1` says "yes" to all prompts, including `chsh` (change default shell), which requires a password and hangs in non-interactive environments. To skip the shell-change and immediate-switch prompts, use `ZDOTS_NO=1` instead (says "no" to everything), or kill the process after it prints "Starship config installed" — the important work is already done by that point.
+This uses prompt defaults and automatically skips `chsh` and the immediate shell-switch (which would hang without a TTY). For full "yes to everything" behavior, use `ZDOTS_YES=1` — but note that `chsh` and shell-switch are still safely skipped when no TTY is detected.
+
+To preview without making changes: `bash setup.sh --dry-run`
 
 ### Linting
 
@@ -22,7 +22,7 @@ ZDOTS_YES=1 ZDOTS_MERGE=all bash setup.sh
 shellcheck setup.sh
 ```
 
-Only two info-level notices (SC1091, SC2015); no errors or warnings.
+Should produce zero findings (all previous info-level notices have been resolved).
 
 ### Testing the generated config
 
@@ -30,7 +30,9 @@ Only two info-level notices (SC1091, SC2015); no errors or warnings.
 zsh -c 'source ~/.zshrc; echo "ZSH_VERSION=$ZSH_VERSION"'
 ```
 
-First run after setup downloads Zinit plugins from GitHub (takes ~15s). Subsequent runs are fast (~70ms).
+First run after setup downloads Zinit plugins from GitHub (takes ~15s). Subsequent runs are fast (~57ms).
+
+**Note:** turbo-loaded plugins (`zsh-syntax-highlighting`, `zsh-autosuggestions`) only activate in a real interactive terminal with ZLE. Testing via `zsh -i <<'EOF'` heredoc or `zsh -c` won't trigger them — use the Desktop pane terminal instead.
 
 ### Startup benchmark
 
@@ -44,6 +46,7 @@ zsh -c 'time zsh -i -c exit'
 |------|---------|
 | `setup.sh` | Main installer script |
 | `zsh/*.zsh` | Modular Zsh config fragments |
+| `zsh/order.txt` | Module load-order manifest |
 | `starship.toml` | Starship prompt config |
 | `~/.zshrc` | Generated config (output of setup.sh) |
 | `~/.local/share/zinit/` | Zinit home + downloaded plugins |
