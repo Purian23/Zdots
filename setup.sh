@@ -442,14 +442,18 @@ if [[ -n "${ZDOTS_NONINTERACTIVE:-}" || ! -t 0 ]]; then
   echo -e "${BLUE}Skipping chsh (non-interactive environment)${RESET}"
 elif $DRY_RUN; then
   echo -e "${YELLOW}[DRY RUN] Would offer to change default shell${RESET}"
-elif [[ "$current_shell" != "zsh" && "$current_shell" != "fish" ]]; then
-  echo -e "${YELLOW}Your default shell is $current_shell.${RESET}"
-  if [[ $(ask_yes_no "${YELLOW}Change default shell to Zsh? [y/N]: ${RESET}" N) == y ]]; then
-    chsh -s "$(command -v zsh)"
-    echo -e "${GREEN}Default shell changed to Zsh.${RESET}"
-  elif [[ $(ask_yes_no "${YELLOW}Change default shell to Fish? [y/N]: ${RESET}" N) == y ]]; then
-    chsh -s "$(command -v fish)"
-    echo -e "${GREEN}Default shell changed to Fish.${RESET}"
+else
+  if [[ "$current_shell" != "zsh" ]] && command -v zsh >/dev/null 2>&1; then
+    if [[ $(ask_yes_no "${YELLOW}Set Zsh as default shell? [y/N]: ${RESET}" N) == y ]]; then
+      chsh -s "$(command -v zsh)"
+      echo -e "${GREEN}Default shell changed to Zsh.${RESET}"
+    fi
+  fi
+  if [[ "$current_shell" != "fish" ]] && command -v fish >/dev/null 2>&1; then
+    if [[ $(ask_yes_no "${YELLOW}Set Fish as default shell? [y/N]: ${RESET}" N) == y ]]; then
+      chsh -s "$(command -v fish)"
+      echo -e "${GREEN}Default shell changed to Fish.${RESET}"
+    fi
   fi
 fi
 
