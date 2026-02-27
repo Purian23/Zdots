@@ -356,6 +356,85 @@ if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
   fi
 fi
 
+# === Port fish content to zsh ===
+FISH_SOURCE_FOR_PORT=""
+if [[ -d "$HOME/.config/fish/conf.d" ]] && ! $configure_fish; then
+  FISH_SOURCE_FOR_PORT="$HOME/.config/fish/conf.d"
+fi
+
+if [[ -n "$FISH_SOURCE_FOR_PORT" ]] && ! $DRY_RUN; then
+  if [[ $(ask_yes_no "${YELLOW}Port aliases/exports/PATH from fish config to zsh? [y/N]: ${RESET}" N) == y ]]; then
+    fish_imported=false
+    maybe_add_fish_footer() {
+      if [ "$fish_imported" = false ]; then
+        { echo ""; echo "# --- Imported from fish config on $(date) ---"; } >> "$FINAL_ZSHRC"
+        fish_imported=true
+      fi
+    }
+
+    alias_count=0
+    export_count=0
+    path_count=0
+
+    for conf in "$FISH_SOURCE_FOR_PORT"/*.fish; do
+      [[ -f "$conf" ]] || continue
+
+      # alias foo 'bar' → alias foo='bar'
+      grep -E "^alias " "$conf" 2>/dev/null | while IFS= read -r line; do
+        rest="${line#alias }"
+        name="${rest%% *}"
+        value="${rest#* }"
+        value="${value#\'}"
+        value="${value%\'}"
+        value="${value#\"}"
+        value="${value%\"}"
+        converted="alias ${name}='${value}'"
+        if ! grep -Fxq "$converted" "$FINAL_ZSHRC"; then
+          maybe_add_fish_footer
+          echo "$converted" >> "$FINAL_ZSHRC"
+        fi
+      done
+      alias_count=$((alias_count + $(grep -cE "^alias " "$conf" 2>/dev/null || true)))
+
+      # set -gx FOO bar → export FOO=bar
+      grep -E "^set -gx " "$conf" 2>/dev/null | while IFS= read -r line; do
+        rest="${line#set -gx }"
+        var="${rest%% *}"
+        value="${rest#* }"
+        converted="export ${var}=${value}"
+        if ! grep -Fxq "$converted" "$FINAL_ZSHRC"; then
+          maybe_add_fish_footer
+          echo "$converted" >> "$FINAL_ZSHRC"
+        fi
+      done
+      export_count=$((export_count + $(grep -cE "^set -gx " "$conf" 2>/dev/null || true)))
+
+      # fish_add_path /foo → PATH=/foo:$PATH
+      grep -E "^fish_add_path " "$conf" 2>/dev/null | while IFS= read -r line; do
+        rest="${line#fish_add_path }"
+        rest="${rest#-g }"
+        rest="${rest#-gP }"
+        converted="PATH=${rest}:\$PATH"
+        if ! grep -Fxq "$converted" "$FINAL_ZSHRC"; then
+          maybe_add_fish_footer
+          echo "$converted" >> "$FINAL_ZSHRC"
+        fi
+      done
+      path_count=$((path_count + $(grep -cE "^fish_add_path " "$conf" 2>/dev/null || true)))
+    done
+
+    total=$((alias_count + export_count + path_count))
+    if [[ "$total" -gt 0 ]]; then
+      echo -e "${GREEN}  ✔ Ported from fish config${RESET}"
+      echo -e "${BLUE}    ${alias_count} aliases, ${export_count} exports, ${path_count} PATH entries${RESET}"
+    else
+      echo -e "${BLUE}  No portable content found in fish config.${RESET}"
+    fi
+  fi
+elif $DRY_RUN && [[ -n "$FISH_SOURCE_FOR_PORT" ]]; then
+  echo -e "${YELLOW}[DRY RUN] Would offer to port fish aliases/exports/PATH to zsh${RESET}"
+fi
+
 # === Compile .zshrc ===
 if $DRY_RUN; then
   echo -e "${YELLOW}[DRY RUN] Would compile ~/.zshrc${RESET}"
