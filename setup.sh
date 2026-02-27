@@ -403,6 +403,76 @@ else
   echo -e "${YELLOW}  No fish/ directory found, skipping fish config${RESET}"
 fi
 
+# === Port zsh content to fish ===
+# Look for a zsh backup or existing .zshrc to offer porting aliases/exports/PATH
+ZSH_SOURCE_FOR_PORT=""
+if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
+  ZSH_SOURCE_FOR_PORT="$BACKUP_FILE"
+elif [[ -f "$HOME/.zshrc" ]] && ! $configure_zsh; then
+  ZSH_SOURCE_FOR_PORT="$HOME/.zshrc"
+fi
+
+if [[ -n "$ZSH_SOURCE_FOR_PORT" ]] && ! $DRY_RUN; then
+  if [[ $(ask_yes_no "${YELLOW}Port aliases/exports/PATH from zsh config to fish? [y/N]: ${RESET}" N) == y ]]; then
+    FISH_IMPORT="$FISH_CONFIG_DIR/conf.d/98-imported.fish"
+
+    {
+      echo "# --- Imported from zsh config on $(date) ---"
+    } > "$FISH_IMPORT"
+
+    # Aliases: alias foo='bar' → alias foo 'bar'
+    grep -E '^alias ' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null | while IFS= read -r line; do
+      name="${line#alias }"
+      name="${name%%=*}"
+      value="${line#*=}"
+      value="${value#\'}"
+      value="${value%\'}"
+      value="${value#\"}"
+      value="${value%\"}"
+      echo "alias $name '$value'" >> "$FISH_IMPORT"
+    done
+    alias_count=$(grep -cE '^alias ' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null || true)
+
+    # Exports: export FOO=bar → set -gx FOO bar
+    grep -E '^export [A-Za-z_]+=' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null | while IFS= read -r line; do
+      rest="${line#export }"
+      var="${rest%%=*}"
+      value="${rest#*=}"
+      value="${value#\'}"
+      value="${value%\'}"
+      value="${value#\"}"
+      value="${value%\"}"
+      echo "set -gx $var $value" >> "$FISH_IMPORT"
+    done
+    export_count=$(grep -cE '^export [A-Za-z_]+=' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null || true)
+
+    # PATH: PATH=/foo/bar:$PATH → fish_add_path /foo/bar
+    grep -E '^PATH=' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null | while IFS= read -r line; do
+      value="${line#PATH=}"
+      value="${value#\"}"
+      value="${value%\"}"
+      value="${value#\'}"
+      value="${value%\'}"
+      value="${value%:\$PATH}"
+      if [[ "$value" != *'$'* && -n "$value" ]]; then
+        echo "fish_add_path $value" >> "$FISH_IMPORT"
+      fi
+    done
+    path_count=$(grep -cE '^PATH=' "$ZSH_SOURCE_FOR_PORT" 2>/dev/null || true)
+
+    total=$((alias_count + export_count + path_count))
+    if [[ "$total" -gt 0 ]]; then
+      echo -e "${GREEN}  ✔ Ported to $FISH_IMPORT${RESET}"
+      echo -e "${BLUE}    ${alias_count} aliases, ${export_count} exports, ${path_count} PATH entries${RESET}"
+    else
+      echo -e "${BLUE}  No portable content found in zsh config.${RESET}"
+      rm -f "$FISH_IMPORT"
+    fi
+  fi
+elif $DRY_RUN && [[ -n "$ZSH_SOURCE_FOR_PORT" ]]; then
+  echo -e "${YELLOW}[DRY RUN] Would offer to port zsh aliases/exports/PATH to fish${RESET}"
+fi
+
 fi # end configure_fish
 
 # =====================================================================
