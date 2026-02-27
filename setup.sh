@@ -184,41 +184,49 @@ install_shell_if_missing() {
   fi
 }
 
-# === Install shells (prompt before installing) ===
+# === Install shells and decide which to configure ===
 has_zsh=false
 has_fish=false
+configure_zsh=false
+configure_fish=false
 command -v zsh >/dev/null 2>&1 && has_zsh=true
 command -v fish >/dev/null 2>&1 && has_fish=true
 
 if ! $has_zsh; then
-  if [[ $(ask_yes_no "${YELLOW}Zsh is not installed. Install it? [Y/n]: ${RESET}" Y) == y ]]; then
-    install_shell_if_missing zsh && has_zsh=true
+  if [[ $(ask_yes_no "${YELLOW}Zsh is not installed. Install and configure it? [Y/n]: ${RESET}" Y) == y ]]; then
+    install_shell_if_missing zsh && { has_zsh=true; configure_zsh=true; }
   else
     echo -e "${BLUE}Skipping Zsh.${RESET}"
   fi
 else
   echo -e "${BLUE}Zsh is already installed.${RESET}"
+  if [[ $(ask_yes_no "${YELLOW}Configure Zsh with Zdots? [Y/n]: ${RESET}" Y) == y ]]; then
+    configure_zsh=true
+  fi
 fi
 
 if ! $has_fish; then
-  if [[ $(ask_yes_no "${YELLOW}Fish is not installed. Install it? [Y/n]: ${RESET}" Y) == y ]]; then
-    install_shell_if_missing fish && has_fish=true
+  if [[ $(ask_yes_no "${YELLOW}Fish is not installed. Install and configure it? [Y/n]: ${RESET}" Y) == y ]]; then
+    install_shell_if_missing fish && { has_fish=true; configure_fish=true; }
   else
     echo -e "${BLUE}Skipping Fish.${RESET}"
   fi
 else
   echo -e "${BLUE}Fish is already installed.${RESET}"
+  if [[ $(ask_yes_no "${YELLOW}Configure Fish with Zdots? [Y/n]: ${RESET}" Y) == y ]]; then
+    configure_fish=true
+  fi
 fi
 
-if ! $has_zsh && ! $has_fish; then
-  echo -e "${RED}Neither Zsh nor Fish is available. Nothing to configure.${RESET}"
-  exit 1
+if ! $configure_zsh && ! $configure_fish; then
+  echo -e "${RED}No shells selected for configuration. Nothing to do.${RESET}"
+  exit 0
 fi
 
 # =====================================================================
 # ZSH SETUP
 # =====================================================================
-if $has_zsh; then
+if $configure_zsh; then
 echo ""
 echo -e "${BLUE}▶ Setting up Zsh${RESET}"
 
@@ -360,12 +368,12 @@ elif command -v zsh >/dev/null 2>&1; then
   fi
 fi
 
-fi # end has_zsh
+fi # end configure_zsh
 
 # =====================================================================
 # FISH SETUP
 # =====================================================================
-if $has_fish; then
+if $configure_fish; then
 echo ""
 echo -e "${BLUE}▶ Setting up Fish${RESET}"
 
@@ -395,7 +403,7 @@ else
   echo -e "${YELLOW}  No fish/ directory found, skipping fish config${RESET}"
 fi
 
-fi # end has_fish
+fi # end configure_fish
 
 # =====================================================================
 # SHARED: Starship configuration
@@ -407,15 +415,17 @@ if [[ -f "$STARSHIP_SOURCE" ]]; then
 
   if [[ -f "$STARSHIP_CONFIG" ]]; then
     echo -e "${YELLOW}Existing starship.toml found at $STARSHIP_CONFIG${RESET}"
-    if [[ $(ask_yes_no "${YELLOW}Replace with Zdots starship config? [y/N]: ${RESET}" N) == y ]]; then
+    if [[ $(ask_yes_no "${YELLOW}Replace with Zdots starship config? (existing will be backed up) [y/N]: ${RESET}" N) == y ]]; then
       if $DRY_RUN; then
-        echo -e "${YELLOW}[DRY RUN] Would replace $STARSHIP_CONFIG${RESET}"
+        echo -e "${YELLOW}[DRY RUN] Would back up and replace $STARSHIP_CONFIG${RESET}"
       else
         ts="$(date +%Y%m%d%H%M)"
-        mv "$STARSHIP_CONFIG" "$STARSHIP_CONFIG.bak.$ts"
+        STARSHIP_BACKUP="$STARSHIP_CONFIG.bak.$ts"
+        mv "$STARSHIP_CONFIG" "$STARSHIP_BACKUP"
         cp "$STARSHIP_SOURCE" "$STARSHIP_CONFIG"
         starship_status="installed (replaced)"
         echo -e "${GREEN}  ✔ Starship config installed${RESET}"
+        echo -e "${BLUE}    Backup: $STARSHIP_BACKUP${RESET}"
       fi
     else
       starship_status="kept existing"
@@ -447,7 +457,7 @@ if [[ "$OS_TYPE" == "linux" ]]; then
 else
   echo -e "${BLUE}   System:   $OS_TYPE${RESET}"
 fi
-if $has_zsh; then
+if $configure_zsh; then
   if $DRY_RUN; then
     echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules found${RESET}"
   else
@@ -455,13 +465,17 @@ if $has_zsh; then
     $compile_ok && compile_label=", compiled"
     echo -e "${BLUE}   Zsh:      ${zsh_module_count} modules${compile_label} → ~/.zshrc${RESET}"
   fi
+elif $has_zsh; then
+  echo -e "${BLUE}   Zsh:      installed (not configured)${RESET}"
 fi
-if $has_fish; then
+if $configure_fish; then
   if $DRY_RUN; then
     echo -e "${BLUE}   Fish:     ${fish_module_count} modules found${RESET}"
   else
     echo -e "${BLUE}   Fish:     ${fish_module_count} modules → ~/.config/fish/${RESET}"
   fi
+elif $has_fish; then
+  echo -e "${BLUE}   Fish:     installed (not configured)${RESET}"
 fi
 echo -e "${BLUE}   Starship: ${starship_status}${RESET}"
 [[ -n "$BACKUP_FILE" ]] && echo -e "${BLUE}   Backup:   $BACKUP_FILE${RESET}"
