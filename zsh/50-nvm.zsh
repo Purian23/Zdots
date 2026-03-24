@@ -36,11 +36,15 @@ if [ -s "$NVM_DIR/alias/default" ]; then
   fi
 fi
 
-nvm() {
+nvm_lazy_load() {
   unset -f nvm node npm npx
   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+}
+
+nvm() {
+  nvm_lazy_load
   nvm "$@"
 }
-node() { nvm; node "$@"; }
-npm() { nvm; npm "$@"; }
-npx() { nvm; npx "$@"; }
+node() { nvm_lazy_load; node "$@"; }
+npm() { nvm_lazy_load; npm "$@"; }
+npx() { nvm_lazy_load; npx "$@"; }
