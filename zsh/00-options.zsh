@@ -25,11 +25,8 @@ path=(
   "$HOME/go/bin"
   "$HOME/.local/bin"
   $path
-  "$HOME/.cargo/bin"   # appended so system rustc/cargo (e.g. Fedora's) takes precedence
+  "$HOME/.cargo/bin"
 )
 export PATH
 
-# Source rustup's env only when no system-managed Rust toolchain is present.
-# This keeps ~/.cargo/bin on PATH for Cargo-installed apps (eza, satty, …)
-# without letting rustup shadow /usr/bin/rustc or /usr/bin/cargo.
 [[ ! -x /usr/bin/rustc && -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
