@@ -23,10 +23,10 @@ bindkey '^[[3~' delete-char
 typeset -U path
 path=(
   "$HOME/go/bin"
-  "$HOME/.cargo/bin"
   "$HOME/.local/bin"
   $path
+  "$HOME/.cargo/bin"
 )
 export PATH
 
-[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+[[ ! -x /usr/bin/rustc && -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
